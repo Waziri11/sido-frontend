@@ -20,20 +20,211 @@ function Brand({ compact = false }) { return <Link to="/" className="brand"><img
 function Controls() { const { language, setLanguage, theme, setTheme } = useApp(); return <div className="controls"><button onClick={() => setLanguage(language === 'en' ? 'sw' : 'en')} aria-label="Change language"><Globe2 size={17}/>{language.toUpperCase()}</button><button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label="Change theme">{theme === 'light' ? <Moon size={17}/> : <Sun size={17}/>}</button></div> }
 
 const heroSlides = [
-  { icon: Lightbulb, className: 'hero-one' }, { icon: Wrench, className: 'hero-two' }, { icon: Store, className: 'hero-three' }
+  '/hero/sido%201.jpeg',
+  '/hero/images.jpeg',
+  '/hero/ZIARA%20YA%20JAFO%20-%20SIDO.jpg'
 ]
 const services = [
   [Wrench, 'Technology & technical services', 'Huduma za teknolojia na ufundi'], [GraduationCap, 'Business training & consultancy', 'Mafunzo na ushauri wa biashara'], [Store, 'Marketing & information', 'Masoko na taarifa'], [Banknote, 'Financial linkages', 'Uunganishaji wa huduma za fedha'], [Building2, 'SME infrastructure', 'Miundombinu ya biashara'], [Users, 'Industrial extension services', 'Huduma za ugani wa viwanda']
 ]
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+  return isMobile
+}
+
+function CustomLanguageSwitcher() {
+  const { language, setLanguage } = useApp()
+  return (
+    <div className="language-switcher" role="group" aria-label="Change language" data-no-auto-translate="true">
+      <button
+        type="button"
+        className={`language-switcher-btn${language === 'en' ? ' active' : ''}`}
+        onClick={() => setLanguage('en')}
+        aria-pressed={language === 'en'}
+        title="English"
+      >
+        EN
+      </button>
+      <button
+        type="button"
+        className={`language-switcher-btn${language === 'sw' ? ' active' : ''}`}
+        onClick={() => setLanguage('sw')}
+        aria-pressed={language === 'sw'}
+        title="Kiswahili"
+      >
+        SW
+      </button>
+    </div>
+  )
+}
+
+function CustomThemeToggle() {
+  const { theme, setTheme } = useApp()
+  const isDark = theme === 'dark'
+  return (
+    <button
+      type="button"
+      className={`theme-toggle${isDark ? ' theme-toggle--dark' : ''}`}
+      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      title={isDark ? 'Light Mode' : 'Dark Mode'}
+    >
+      <svg
+        className="theme-toggle-icon theme-toggle-sun"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      <svg
+        className="theme-toggle-icon theme-toggle-moon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>
+  )
+}
+
+function PublicHeader() {
+  const { t } = useApp();
+  const isMobile = useIsMobile();
+  return (
+    <header className="app-header">
+      <div className="header-container">
+        <div className="header-left">
+          <img
+            src="/coatofarms.svg"
+            alt="Tanzania Coat of Arms"
+            className="header-logo coat-of-arms"
+          />
+        </div>
+
+        <div className="header-center">
+          <h1 className="header-title" data-no-auto-translate="true">
+            {isMobile ? 'SIDO' : t.hero.eyebrow}
+          </h1>
+        </div>
+
+        <div className="header-right">
+          <CustomLanguageSwitcher />
+          <CustomThemeToggle />
+          <img
+            src="/sido-logo.png"
+            alt="SIDO Logo"
+            className="header-logo sido-logo"
+          />
+        </div>
+      </div>
+    </header>
+  );
+}
+
 function Landing() {
-  const { t, language } = useApp(); const [slide, setSlide] = useState(0); const [mobile, setMobile] = useState(false); const Icon = heroSlides[slide].icon
-  useEffect(() => { const id = setInterval(() => setSlide(x => (x + 1) % heroSlides.length), 6000); return () => clearInterval(id) }, [])
+  const { t, language } = useApp();
+  const [slide, setSlide] = useState(0);
+  const isMobile = useIsMobile();
+
+  useEffect(() => {
+    const id = setInterval(() => setSlide(x => (x + 1) % heroSlides.length), 6500);
+    return () => clearInterval(id);
+  }, []);
+
+  const changeSlide = (direction) => {
+    setSlide((current) => (current + direction + heroSlides.length) % heroSlides.length);
+  };
+
   const steps = language === 'en' ? [['Create your account','Register your personal and enterprise information.'],['Verify your identity','Confirm your email through a secure one-time code.'],['Build your profile','Keep your enterprise details current in one place.'],['Connect and grow','Prepare to access SIDO opportunities and services.']] : [['Fungua akaunti','Sajili taarifa zako na za biashara yako.'],['Thibitisha utambulisho','Thibitisha barua pepe kwa namba ya mara moja.'],['Jenga wasifu','Weka taarifa za biashara yako mahali pamoja.'],['Ungana na ukue','Jiandae kufikia fursa na huduma za SIDO.']]
+
   return <div className="landing-page">
-    <div className="govbar"><div className="shell"><span>{language === 'en' ? 'The United Republic of Tanzania' : 'Jamhuri ya Muungano wa Tanzania'}</span><Controls/></div></div>
-    <header className="public-header"><div className="shell"><Brand/><button className="mobile-menu" onClick={() => setMobile(!mobile)} aria-label="Menu">{mobile ? <X/> : <Menu/>}</button><nav className={mobile ? 'open' : ''}><a href="#about">{t.nav.about}</a><a href="#services">{t.nav.services}</a><a href="#journey">{t.nav.journey}</a><Button variant="ghost" asChild><Link to="/login">{t.nav.login}</Link></Button><Button asChild><Link to="/register">{t.nav.register}</Link></Button></nav></div></header>
+    <PublicHeader />
     <main>
-      <section className={`hero ${heroSlides[slide].className}`}><div className="hero-overlay"/><div className="shell hero-grid"><div className="hero-copy"><span className="kicker light">{t.hero.eyebrow}</span><h1>{t.hero.title}</h1><p>{t.hero.body}</p><div className="hero-actions"><Button asChild><Link to="/login">{t.hero.primary}<ArrowRight size={18}/></Link></Button><Button variant="outline" asChild><a href="#services">{t.hero.secondary}</a></Button></div><div className="hero-proof"><ShieldCheck/><span><strong>{language === 'en' ? 'Secure access' : 'Ufikiaji salama'}</strong>{language === 'en' ? 'Your enterprise data stays protected' : 'Taarifa zako zinalindwa'}</span></div></div><div className="hero-art"><div className="hero-orbit"><Icon/><span>SIDO</span></div></div></div><button className="hero-arrow left" onClick={() => setSlide((slide + 2) % 3)}><ChevronLeft/></button><button className="hero-arrow right" onClick={() => setSlide((slide + 1) % 3)}><ChevronRight/></button><div className="hero-dots">{heroSlides.map((_,i)=><button className={i===slide?'active':''} key={i} onClick={()=>setSlide(i)} aria-label={`Slide ${i+1}`}/>)}</div></section>
+      <section className="hero" id="home">
+        <div className="hero-slides" aria-hidden="true">
+          {heroSlides.map((image, index) => (
+            <div
+              key={image}
+              className={`hero-slide${index === slide ? ' is-active' : ''}`}
+              style={{ backgroundImage: `url(${image})` }}
+            />
+          ))}
+        </div>
+        <div className="shell hero-grid">
+          <div className="hero-copy">
+            <h1>{t.hero.title}</h1>
+            <p>{t.hero.body}</p>
+            <div className="hero-actions">
+              <Link className="primary-action" to="/login">
+                {t.hero.primary} <ArrowRight size={18} />
+              </Link>
+              <a className="secondary-action" href="#services">
+                {t.hero.secondary}
+              </a>
+            </div>
+            <div className="hero-proof">
+              <ShieldCheck size={20} />
+              <span>
+                <strong>{language === 'en' ? 'Secure access' : 'Ufikiaji salama'}</strong>
+                {language === 'en' ? 'Your enterprise data stays protected' : 'Taarifa zako zinalindwa'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="hero-arrow left"
+          onClick={() => changeSlide(-1)}
+          aria-label={language === 'sw' ? 'Picha iliyopita' : 'Previous image'}
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <button
+          type="button"
+          className="hero-arrow right"
+          onClick={() => changeSlide(1)}
+          aria-label={language === 'sw' ? 'Picha inayofuata' : 'Next image'}
+        >
+          <ChevronRight size={24} />
+        </button>
+        <div
+          className="hero-dots"
+          role="group"
+          aria-label={language === 'sw' ? 'Chagua picha' : 'Choose image'}
+        >
+          {heroSlides.map((image, index) => (
+            <button
+              key={image}
+              type="button"
+              className={index === slide ? 'active' : ''}
+              onClick={() => setSlide(index)}
+              aria-label={`Image ${index + 1}`}
+            />
+          ))}
+        </div>
+      </section>
       <section id="about" className="section intro"><div className="shell two-col"><div><span className="kicker">{t.home.aboutKicker}</span><h2>{t.home.aboutTitle}</h2></div><div><p>{t.home.aboutBody}</p><p>{language === 'en' ? 'Established in 1973, SIDO supports an innovative entrepreneurial base and sustainable industrialization across Tanzania.' : 'SIDO ilianzishwa mwaka 1973 kusaidia msingi bunifu wa ujasiriamali na maendeleo endelevu ya viwanda Tanzania.'}</p></div></div></section>
       <section id="services" className="section services"><div className="shell"><div className="section-heading"><span className="kicker">{t.home.servicesKicker}</span><h2>{t.home.servicesTitle}</h2><p>{t.home.servicesBody}</p></div><div className="service-grid">{services.map(([ServiceIcon,en,sw],i)=><article key={en}><span className="service-number">0{i+1}</span><div className="service-icon"><ServiceIcon/></div><h3>{language==='en'?en:sw}</h3><p>{language==='en'?'Practical support tailored to the needs and growth of Tanzanian SMEs.':'Msaada wa vitendo unaolingana na mahitaji na ukuaji wa biashara ndogo Tanzania.'}</p></article>)}</div></div></section>
       <section id="journey" className="section journey"><div className="shell journey-grid"><div><span className="kicker light">{t.home.journeyKicker}</span><h2>{t.home.journeyTitle}</h2><p>{language==='en'?'A secure account gives you one reliable identity for future SIDO digital services.':'Akaunti salama inakupa utambulisho mmoja kwa huduma za kidijitali za SIDO.'}</p><Button variant="outline" asChild><Link to="/register">{t.nav.register}<ArrowRight size={17}/></Link></Button></div><div className="steps">{steps.map((step,i)=><article key={step[0]}><span>0{i+1}</span><div><h3>{step[0]}</h3><p>{step[1]}</p></div></article>)}</div></div></section>
@@ -42,7 +233,7 @@ function Landing() {
   </div>
 }
 
-function AuthLayout({ children }) { return <div className="auth-page"><header><Brand compact/><Controls/></header><main>{children}</main></div> }
+function AuthLayout({ children }) { return <div className="auth-page"><PublicHeader /><main>{children}</main></div> }
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) })
 function Login() {
   const { t, session, setSession } = useApp(); const navigate = useNavigate(); const [otp, setOtp] = useState(null); const [error,setError]=useState(''); const [busy,setBusy]=useState(false)
