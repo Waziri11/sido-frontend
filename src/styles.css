@@ -89,11 +89,25 @@
 .header-events-link:hover { color: var(--orange); }
 .header-avatar { flex: 0 0 auto; }
 .universal-menu { display: none; }
+.header-sidebar-toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+}
+.header-sidebar-toggle svg { width: 18px; }
 .theme-toggle > span { line-height: 1; }
 .portal-header .header-container { max-width: none; }
 
 @media (max-width: 960px) {
   .universal-menu { display: grid; place-items: center; }
+  .header-sidebar-toggle { display: none; }
 }
 
 @media (max-width: 768px) {
@@ -623,3 +637,59 @@
 }
 .table-action-menu button:hover,
 .table-action-menu a:hover { background: hsl(var(--muted)); }
+
+.portal aside,
+.portal-main { transition: width .22s ease, margin-left .22s ease, transform .22s ease; }
+.sidebar-brand { position: relative; }
+.sidebar-brand .desktop-sidebar-toggle {
+  position: absolute;
+  z-index: 2;
+  top: 23px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 50%;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: 0 4px 12px rgba(36, 29, 24, .12);
+  cursor: pointer;
+}
+.sidebar-brand .desktop-sidebar-toggle svg { width: 15px; }
+.sidebar-brand .mobile-sidebar-close { display: none; }
+.sidebar-collapsed aside { width: 78px; }
+.sidebar-collapsed .portal-main { width: calc(100% - 78px); margin-left: 78px; }
+.sidebar-collapsed .sidebar-brand { justify-content: center; padding-inline: 10px; }
+.sidebar-collapsed .panel-label,
+.sidebar-collapsed aside nav a span,
+.sidebar-collapsed .sidebar-logout span { display: none; }
+.sidebar-collapsed aside nav { padding-inline: 10px; }
+.sidebar-collapsed aside nav a,
+.sidebar-collapsed .sidebar-logout { justify-content: center; padding-inline: 10px; }
+.sidebar-collapsed .sidebar-logout { margin-inline: 10px; }
+
+@media(max-width:960px) {
+  .sidebar-brand .desktop-sidebar-toggle { display: none; }
+  .sidebar-brand .mobile-sidebar-close {
+    display: grid;
+    place-items: center;
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: hsl(var(--foreground));
+    cursor: pointer;
+  }
+  .sidebar-collapsed aside { width: 250px; }
+  .sidebar-collapsed .portal-main { width: 100%; margin-left: 0; }
+  .sidebar-collapsed .sidebar-brand { justify-content: flex-start; padding: 10px 18px; }
+  .sidebar-collapsed .panel-label { display: block; }
+  .sidebar-collapsed aside nav a span,
+  .sidebar-collapsed .sidebar-logout span { display: inline; }
+  .sidebar-collapsed aside nav { padding-inline: 12px; }
+  .sidebar-collapsed aside nav a,
+  .sidebar-collapsed .sidebar-logout { justify-content: flex-start; padding-inline: 12px; }
+  .sidebar-collapsed .sidebar-logout { margin-inline: 12px; }
+}
