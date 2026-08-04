@@ -25,7 +25,7 @@ export function AppProvider({ children }) {
   const [session, setSession] = useState(null); const [loading, setLoading] = useState(true)
   useEffect(() => { document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem('sido_theme', theme) }, [theme])
   useEffect(() => { document.documentElement.lang = language; localStorage.setItem('sido_language', language) }, [language])
-  const refresh = async () => { try { const { data } = await api.get('/auth/me'); setSession(data.data) } catch { setSession(null) } finally { setLoading(false) } }
+  const refresh = async () => { try { const { data } = await api.get('/auth/me'); setSession(data.data?.user ? data.data : null) } catch { setSession(null) } finally { setLoading(false) } }
   useEffect(() => { refresh() }, [])
   const logout = async () => { await api.post('/auth/logout'); setSession(null) }
   const value = useMemo(() => ({ language, setLanguage, theme, setTheme, t: copy[language], session, setSession, loading, refresh, logout }), [language, theme, session, loading])
