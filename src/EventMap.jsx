@@ -21,7 +21,8 @@ function BaseMap({ events = [], selectedId, onSelect, onPick, value, draggable =
     map.current = new maplibregl.Map({ container: container.current, style: mapStyle, center: TANZANIA_CENTER, zoom: 5.1, maxBounds: [[27, -14], [43, 1]], attributionControl: true })
     map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
     map.current.on('click', event => pickHandler.current?.({ longitude: event.lngLat.lng, latitude: event.lngLat.lat }))
-    return () => { map.current?.remove(); map.current = null }
+    const observer = new ResizeObserver(() => map.current?.resize()); observer.observe(container.current)
+    return () => { observer.disconnect(); map.current?.remove(); map.current = null }
   }, [])
   useEffect(() => {
     markers.current.forEach(marker => marker.remove()); markers.current = []
