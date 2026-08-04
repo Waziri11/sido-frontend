@@ -7,6 +7,7 @@ import { api, messageOf } from './lib'
 import { Alert, Badge, Button, Card, Field, Input, Textarea } from './components/ui'
 import { useApp } from './context'
 import SiteHeader from './SiteHeader'
+import VisualDesigner from './VisualDesigner'
 
 const formatMoney = (minor, currency = 'TZS') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((minor || 0) / 100)
 const date = value => value ? new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'
@@ -71,7 +72,7 @@ function BoothControlWorkspace({ event }) {
 
 export function AdminBoothControl() {
   const { id } = useParams(); const events = useQuery({ queryKey: ['admin-events'], queryFn: async () => (await api.get('/admin/events')).data.data }); const selected = events.data?.find(x => x._id === id)
-  return <BookingShell admin><Link to="/admin/events" className="back-link"><ArrowLeft size={16}/>Managed events</Link><div className="page-head booking-title"><div><h1>{selected ? `${selected.name}: booth control` : 'Booth control'}</h1><p>Define, price, block, and monitor the booth inventory for this event.</p></div></div>{events.isLoading ? <Loading/> : selected ? <BoothControlWorkspace event={selected}/> : <Card className="empty"><CalendarDays/><h2>Event not found</h2><p>Return to Managed events and choose an event to configure.</p><Button asChild><Link to="/admin/events">View managed events</Link></Button></Card>}</BookingShell>
+  return <BookingShell admin><Link to="/admin/events" className="back-link"><ArrowLeft size={16}/>Managed events</Link><div className="page-head booking-title"><div><h1>{selected ? `${selected.name}: venue designer` : 'Venue designer'}</h1><p>Draw zones, create custom booth shapes, arrange venue features, and edit exact dimensions in metres.</p></div></div>{events.isLoading ? <Loading/> : selected ? <VisualDesigner event={selected}/> : <Card className="empty"><CalendarDays/><h2>Event not found</h2><p>Return to Managed events and choose an event to configure.</p><Button asChild><Link to="/admin/events">View managed events</Link></Button></Card>}</BookingShell>
 }
 
 export function AdminCreateEvent() {
