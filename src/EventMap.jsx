@@ -7,23 +7,26 @@ import { Alert, Badge, Button, Input } from './components/ui'
 
 const TANZANIA_CENTER = [35.5, -6.25]
 const TANZANIA_BOUNDS = [[28.5, -12.5], [41.5, -0.5]]
-const tileUrl = import.meta.env.VITE_MAP_TILE_URL || 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
-const rasterStyle = { version: 8, sources: { osm: { type: 'raster', tiles: [tileUrl], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } }, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e9ece7' } }, { id: 'osm', type: 'raster', source: 'osm' }] }
-const mapStyle = import.meta.env.VITE_MAP_STYLE_URL || rasterStyle
+const lightTileUrl = import.meta.env.VITE_MAP_TILE_URL || 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
+const darkTileUrl = import.meta.env.VITE_MAP_DARK_TILE_URL || 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+const rasterStyle = dark => ({ version: 8, sources: { osm: { type: 'raster', tiles: [dark ? darkTileUrl : lightTileUrl], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } }, layers: [{ id: 'background', type: 'background', paint: { 'background-color': dark ? '#111817' : '#e6e2d9' } }, { id: 'osm', type: 'raster', source: 'osm' }] })
+const mapStyle = dark => (dark ? import.meta.env.VITE_MAP_DARK_STYLE_URL : import.meta.env.VITE_MAP_STYLE_URL) || rasterStyle(dark)
 const date = value => value ? new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'
 const hasLocation = event => Number.isFinite(Number(event.latitude)) && Number.isFinite(Number(event.longitude))
+const useDarkMode = () => { const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark')); useEffect(() => { const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains('dark'))); observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); return () => observer.disconnect() }, []); return dark }
 
 function BaseMap({ events = [], selectedId, onSelect, onPick, value, draggable = false, className = '' }) {
-  const container = useRef(null); const map = useRef(null); const markers = useRef([]); const picker = useRef(null); const pickHandler = useRef(onPick)
+  const container = useRef(null); const map = useRef(null); const markers = useRef([]); const picker = useRef(null); const pickHandler = useRef(onPick); const dark = useDarkMode(); const initialDark = useRef(dark)
   pickHandler.current = onPick
   useEffect(() => {
     if (!container.current || map.current) return
-    map.current = new maplibregl.Map({ container: container.current, style: mapStyle, center: TANZANIA_CENTER, zoom: 5.1, maxBounds: [[27, -14], [43, 1]], attributionControl: true })
+    map.current = new maplibregl.Map({ container: container.current, style: mapStyle(initialDark.current), center: TANZANIA_CENTER, zoom: 5.1, maxBounds: [[27, -14], [43, 1]], attributionControl: true })
     map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
     map.current.on('click', event => pickHandler.current?.({ longitude: event.lngLat.lng, latitude: event.lngLat.lat }))
     const observer = new ResizeObserver(() => map.current?.resize()); observer.observe(container.current)
     return () => { observer.disconnect(); map.current?.remove(); map.current = null }
   }, [])
+  useEffect(() => { if (map.current) map.current.setStyle(mapStyle(dark)) }, [dark])
   useEffect(() => {
     markers.current.forEach(marker => marker.remove()); markers.current = []
     if (!map.current) return
@@ -44,7 +47,7 @@ function BaseMap({ events = [], selectedId, onSelect, onPick, value, draggable =
     map.current.flyTo({ center: [Number(value.longitude), Number(value.latitude)], zoom: Math.max(map.current.getZoom(), 10), essential: true })
   }, [value, draggable])
   const reset = () => map.current?.fitBounds(TANZANIA_BOUNDS, { padding: 35, duration: 700 })
-  return <div className={`event-map-canvas ${className}`}><div ref={container}/><button className="map-reset" onClick={reset} type="button" aria-label="Show all Tanzania"><Crosshair/></button></div>
+  return <div className={`event-map-canvas ${dark ? 'map-dark' : 'map-light'} ${className}`}><div ref={container}/><button className="map-reset" onClick={reset} type="button" aria-label="Show all Tanzania"><Crosshair/></button></div>
 }
 
 export function EventMapDirectory({ events, mode = 'public', loading = false, error, onManage, onToggle, onDelete }) {
