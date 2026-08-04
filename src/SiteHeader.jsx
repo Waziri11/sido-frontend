@@ -14,7 +14,6 @@ export default function SiteHeader({ onMenu, onSidebarToggle, sidebarCollapsed =
       </div>
       <div className="header-center"><Link to="/" className="header-title" data-no-auto-translate="true">Small Industries Development Organization</Link></div>
       <div className="header-right">
-        <Link className="header-events-link" to="/events">{language === 'sw' ? 'Matukio' : 'Events'}</Link>
         <div className="language-switcher" role="group" aria-label="Change language">
           <button type="button" className={`language-switcher-btn${language === 'en' ? ' active' : ''}`} onClick={() => setLanguage('en')}>EN</button>
           <button type="button" className={`language-switcher-btn${language === 'sw' ? ' active' : ''}`} onClick={() => setLanguage('sw')}>SW</button>
