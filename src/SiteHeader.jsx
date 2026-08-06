@@ -1,10 +1,14 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useApp } from './context'
+import AdminReportExport from './AdminReportExport'
 
 export default function SiteHeader({ onMenu, onSidebarToggle, sidebarCollapsed = false, portal = false }) {
   const { language, setLanguage, theme, setTheme } = useApp()
+  const { pathname } = useLocation()
   const isDark = theme === 'dark'
+  const eventMatch = pathname.match(/^\/admin\/events\/([a-f\d]{24})\/manage$/i)
+  const reportType = pathname === '/admin/entrepreneurs' ? 'entrepreneurs' : pathname === '/admin/events' ? 'events' : pathname === '/admin/revenue' ? 'revenue' : eventMatch ? 'event' : null
   return <header className={`app-header universal-header${portal ? ' portal-header' : ''}`}>
     <div className="header-container">
       <div className="header-left">
@@ -14,6 +18,7 @@ export default function SiteHeader({ onMenu, onSidebarToggle, sidebarCollapsed =
       </div>
       <div className="header-center"><Link to="/" className="header-title" data-no-auto-translate="true">Small Industries Development Organization</Link></div>
       <div className="header-right">
+        {portal && reportType && <AdminReportExport type={reportType} eventId={eventMatch?.[1]}/>} 
         <div className="language-switcher" role="group" aria-label="Change language">
           <button type="button" className={`language-switcher-btn${language === 'en' ? ' active' : ''}`} onClick={() => setLanguage('en')}>EN</button>
           <button type="button" className={`language-switcher-btn${language === 'sw' ? ' active' : ''}`} onClick={() => setLanguage('sw')}>SW</button>
