@@ -8,12 +8,12 @@ import { useApp } from './context'
 const configs = {
   entrepreneurs: {
     title: ['Export entrepreneurs report', 'Pakua ripoti ya wajasiriamali'], endpoint: '/admin/reports/entrepreneurs.pdf', selection: 'columns',
-    options: [['name','Entrepreneur'],['email','Email'],['phone','Phone'],['business','Business'],['type','Business type'],['location','Region / district'],['address','Address'],['tin','TIN'],['status','Status'],['verified','Verified'],['registered','Registered']],
+    options: [['name','Entrepreneur'],['email','Email'],['phone','Phone'],['business','Business'],['type','Business type'],['location','Region / district'],['address','Address'],['tin','TIN'],['reportedSales','Reported business sales'],['status','Status'],['verified','Verified'],['registered','Registered']],
     filters: ['search','status','region','archived','dates'],
   },
   events: {
     title: ['Export events summary', 'Pakua muhtasari wa matukio'], endpoint: '/admin/reports/events.pdf', selection: 'columns',
-    options: [['name','Event'],['location','Location'],['dates','Event dates'],['booking','Booking window'],['status','Status'],['booths','Booths'],['occupied','Occupied'],['transactions','Paid sales'],['revenue','Revenue']],
+    options: [['name','Event'],['location','Location'],['dates','Event dates'],['booking','Booking window'],['status','Status'],['booths','Booths'],['occupied','Occupied'],['transactions','Paid bookings'],['revenue','Booking revenue'],['reportedSales','Reported business sales']],
     filters: ['search','eventStatus','dates'],
   },
   event: {
