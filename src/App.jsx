@@ -89,6 +89,7 @@ import {
   AdminRevenue,
   BookingDetail,
   BookingEvents,
+  MyBookingDetail,
   MyBookings,
   PublicEvent,
   PublicEvents,
@@ -3752,6 +3753,14 @@ function App() {
           element={
             <Protected role="entrepreneur">
               <MyBookings />
+            </Protected>
+          }
+        />
+        <Route
+          path="/portal/bookings/:id"
+          element={
+            <Protected role="entrepreneur">
+              <MyBookingDetail />
             </Protected>
           }
         />

@@ -1145,8 +1145,7 @@ function BookingTimeline({ reservation, order }) {
 
 export function MyBookings() {
   const { t, language } = useApp();
-  const client = useQueryClient();
-  const [busy, setBusy] = useState("");
+  const navigate = useNavigate();
   const query = useQuery({
     queryKey: ["my-bookings"],
     queryFn: async () => (await api.get("/entrepreneur/bookings")).data.data,
@@ -1169,12 +1168,6 @@ export function MyBookings() {
   const orderMap = new Map(
     query.data.orders.map((x) => [String(x.reservation), x]),
   );
-  const simulate = async (payment) => {
-    setBusy(payment._id);
-    await api.post(`/payments/${payment._id}/sandbox/paid`);
-    await client.invalidateQueries({ queryKey: ["my-bookings"] });
-    setBusy("");
-  };
   return (
     <BookingShell>
       <div className="page-head">
@@ -1191,94 +1184,220 @@ export function MyBookings() {
           </Link>
         </Button>
       </div>
-      <div className="booking-records">
-        {query.data.reservations.map((reservation) => {
-          const order = orderMap.get(String(reservation._id));
-          const payment = order && paymentMap.get(String(order._id));
-          return (
-            <Card key={reservation._id} className="booking-record">
-              <div>
-                <Badge tone={statusTone(reservation.status)}>
-                  {reservation.status.replaceAll("_", " ").toLowerCase()}
-                </Badge>
-                <h2>{reservation.event?.name}</h2>
-                <p>
-                  {reservation.booths.map((x) => `Booth ${x.code}`).join(", ")}{" "}
-                  · {reservation.event?.venue}
-                </p>
-              </div>
-              <BookingTimeline reservation={reservation} order={order} />
-              {order && (
-                <div className="payment-summary">
-                  <span>
-                    Order <strong>{order.number}</strong>
-                  </span>
-                  <span>
-                    Total{" "}
-                    <strong>
-                      {formatMoney(order.totalMinor, order.currency)}
-                    </strong>
-                  </span>
-                  {payment && (
-                    <span>
-                      gEPG control number{" "}
-                      <strong>{payment.controlNumber}</strong>
-                    </span>
-                  )}
-                </div>
-              )}
-              <div className="record-actions">
-                {payment?.status === "pending" && (
-                  <Button asChild>
-                    <Link
-                      to={`/portal/events/${reservation.event?._id || reservation.event}`}
-                    >
-                      {t.booking.continuePayment}
-                    </Link>
-                  </Button>
-                )}
-                {import.meta.env.DEV && payment?.status === "pending" && (
-                  <Button
-                    variant="outline"
-                    disabled={busy === payment._id}
-                    onClick={() => simulate(payment)}
+      <Card className="table-card booking-table-card">
+        <div className="table-wrap mobile-record-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{language === "sw" ? "Tukio" : "Event"}</th>
+                <th>{language === "sw" ? "Banda" : "Booth"}</th>
+                <th>{language === "sw" ? "Agizo" : "Order"}</th>
+                <th>{language === "sw" ? "Jumla" : "Total"}</th>
+                <th>{language === "sw" ? "Hali" : "Status"}</th>
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {query.data.reservations.map((reservation) => {
+                const order = orderMap.get(String(reservation._id));
+                const payment = order && paymentMap.get(String(order._id));
+                const detailPath = `/portal/bookings/${reservation._id}`;
+                const open = () => navigate(detailPath);
+                return (
+                  <tr
+                    key={reservation._id}
+                    className="clickable-booking-row"
+                    tabIndex="0"
+                    onClick={open}
+                    onKeyDown={(event) => {
+                      if (["Enter", " "].includes(event.key)) {
+                        event.preventDefault();
+                        open();
+                      }
+                    }}
                   >
-                    Simulate development payment
-                  </Button>
-                )}
-                {order?.status === "paid" && (
-                  <>
-                    <Button asChild>
-                      <Link to="/portal/sales">
-                        <Banknote size={16} />
-                        Add daily sales
-                      </Link>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <a href={`/api/orders/${order._id}/invoice.pdf`}>
-                        <Download size={16} />
-                        {t.booking.invoice}
-                      </a>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <a href={`/api/orders/${order._id}/pass.pdf`}>
-                        <TicketCheck size={16} />
-                        {t.booking.setupPass}
-                      </a>
-                    </Button>
-                  </>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-        {!query.data.reservations.length && (
-          <Card className="empty">
-            {t.booking.noBookings}{" "}
-            <Link to="/portal/events">{t.booking.browseEvents}</Link>.
-          </Card>
-        )}
+                    <td data-label={language === "sw" ? "Tukio" : "Event"}>
+                      <strong>{reservation.event?.name || "—"}</strong>
+                      <span>{reservation.event?.venue || "—"}</span>
+                    </td>
+                    <td data-label={language === "sw" ? "Banda" : "Booth"}>
+                      {reservation.booths.map((item) => item.code).join(", ") ||
+                        "—"}
+                    </td>
+                    <td data-label={language === "sw" ? "Agizo" : "Order"}>
+                      <strong>{order?.number || "—"}</strong>
+                      {payment?.controlNumber && (
+                        <span>gEPG: {payment.controlNumber}</span>
+                      )}
+                    </td>
+                    <td data-label={language === "sw" ? "Jumla" : "Total"}>
+                      {order
+                        ? formatMoney(order.totalMinor, order.currency)
+                        : "—"}
+                    </td>
+                    <td data-label={language === "sw" ? "Hali" : "Status"}>
+                      <Badge tone={statusTone(reservation.status)}>
+                        {reservation.status.replaceAll("_", " ").toLowerCase()}
+                      </Badge>
+                    </td>
+                    <td data-label="">
+                      <Button size="sm" variant="outline" asChild>
+                        <Link
+                          to={detailPath}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {language === "sw" ? "Maelezo" : "View details"}
+                          <ChevronRight size={15} />
+                        </Link>
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!query.data.reservations.length && (
+                <tr>
+                  <td className="empty-table" colSpan="6">
+                    {t.booking.noBookings}{" "}
+                    <Link to="/portal/events">{t.booking.browseEvents}</Link>.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </BookingShell>
+  );
+}
+
+export function MyBookingDetail() {
+  const { id } = useParams();
+  const { t, language } = useApp();
+  const client = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const query = useQuery({
+    queryKey: ["my-bookings"],
+    queryFn: async () => (await api.get("/entrepreneur/bookings")).data.data,
+  });
+  if (query.isLoading)
+    return (
+      <BookingShell>
+        <Loading />
+      </BookingShell>
+    );
+  if (query.error)
+    return (
+      <BookingShell>
+        <Alert>{messageOf(query.error)}</Alert>
+      </BookingShell>
+    );
+  const reservation = query.data.reservations.find(
+    (item) => String(item._id) === id,
+  );
+  if (!reservation)
+    return (
+      <BookingShell>
+        <Card className="empty">
+          {language === "sw" ? "Nafasi haikupatikana." : "Booking not found."}{" "}
+          <Link to="/portal/bookings">
+            {language === "sw" ? "Rudi kwenye nafasi" : "Back to bookings"}
+          </Link>
+        </Card>
+      </BookingShell>
+    );
+  const order = query.data.orders.find(
+    (item) => String(item.reservation) === String(reservation._id),
+  );
+  const payment =
+    order &&
+    query.data.payments.find(
+      (item) => String(item.order) === String(order._id),
+    );
+  const simulate = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/payments/${payment._id}/sandbox/paid`);
+      await client.invalidateQueries({ queryKey: ["my-bookings"] });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <BookingShell>
+      <Link to="/portal/bookings" className="back-link">
+        <ArrowLeft size={16} />
+        {language === "sw" ? "Nafasi zangu" : "My bookings"}
+      </Link>
+      <div className="page-head">
+        <div>
+          <h1>{reservation.event?.name}</h1>
+          <p>
+            {reservation.booths.map((item) => `Booth ${item.code}`).join(", ")}{" "}
+            · {reservation.event?.venue}
+          </p>
+        </div>
+        <Badge tone={statusTone(reservation.status)}>
+          {reservation.status.replaceAll("_", " ").toLowerCase()}
+        </Badge>
       </div>
+      <Card className="booking-record booking-detail-card">
+        <BookingTimeline reservation={reservation} order={order} />
+        {order && (
+          <div className="payment-summary">
+            <span>
+              {language === "sw" ? "Agizo" : "Order"}{" "}
+              <strong>{order.number}</strong>
+            </span>
+            <span>
+              {language === "sw" ? "Jumla" : "Total"}{" "}
+              <strong>{formatMoney(order.totalMinor, order.currency)}</strong>
+            </span>
+            {payment?.controlNumber && (
+              <span>
+                gEPG control number <strong>{payment.controlNumber}</strong>
+              </span>
+            )}
+          </div>
+        )}
+        <div className="record-actions">
+          {payment?.status === "pending" && (
+            <Button asChild>
+              <Link
+                to={`/portal/events/${reservation.event?._id || reservation.event}`}
+              >
+                {t.booking.continuePayment}
+              </Link>
+            </Button>
+          )}
+          {import.meta.env.DEV && payment?.status === "pending" && (
+            <Button variant="outline" disabled={busy} onClick={simulate}>
+              Simulate development payment
+            </Button>
+          )}
+          {order?.status === "paid" && (
+            <>
+              <Button asChild>
+                <Link to="/portal/sales">
+                  <Banknote size={16} />
+                  {language === "sw" ? "Ongeza mauzo" : "Add daily sales"}
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <a href={`/api/orders/${order._id}/invoice.pdf`}>
+                  <Download size={16} />
+                  {t.booking.invoice}
+                </a>
+              </Button>
+              <Button variant="outline" asChild>
+                <a href={`/api/orders/${order._id}/pass.pdf`}>
+                  <TicketCheck size={16} />
+                  {t.booking.setupPass}
+                </a>
+              </Button>
+            </>
+          )}
+        </div>
+      </Card>
     </BookingShell>
   );
 }
