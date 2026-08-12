@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Circle, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import { Copy, DoorOpen, Grid2X2, MousePointer2, Pencil, Redo2, Route, Save, Square, Tag, Trash2, Undo2, VectorSquare } from 'lucide-react'
 import { api, messageOf } from './lib'
-import { Alert, Badge, Button, Card, Field, Input } from './components/ui'
+import { Alert, Badge, Button, Card, Field, Input, Skeleton } from './components/ui'
 
 const oid=()=>Array.from(crypto.getRandomValues(new Uint8Array(12)),x=>x.toString(16).padStart(2,'0')).join('')
 const cp=x=>structuredClone(x), pts=p=>p.flatMap(x=>[x.x,x.y]), eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b)
@@ -20,7 +20,7 @@ export default function VisualDesigner({event}){
  const stage=useRef();const [data,setData]=useState();const [tool,setTool]=useState('select');const [selected,setSelected]=useState();const [start,setStart]=useState();const [draft,setDraft]=useState([]);const [zoom,setZoom]=useState(1);const [history,setHistory]=useState([]);const [future,setFuture]=useState([]);const [saving,setSaving]=useState(false);const [error,setError]=useState('');const [contextMenu,setContextMenu]=useState(null)
  useEffect(()=>{api.get(`/admin/events/${event._id}/designer`).then(r=>setData(r.data.data)).catch(e=>setError(messageOf(e)))},[event._id])
  useEffect(()=>{const close=()=>setContextMenu(null);window.addEventListener('click',close);window.addEventListener('blur',close);return()=>{window.removeEventListener('click',close);window.removeEventListener('blur',close)}},[])
- if(!data)return <Card className="designer-loading">{error?<Alert>{error}</Alert>:'Loading visual designer…'}</Card>
+ if(!data)return <Card className="designer-loading">{error?<Alert>{error}</Alert>:<div className="designer-skeleton" role="status" aria-label="Loading visual designer"><Skeleton className="designer-skeleton-toolbar"/><Skeleton className="designer-skeleton-canvas"/><span className="sr-only">Loading…</span></div>}</Card>
  const scale=data.floorPlan.pixelsPerMetre,grid=data.floorPlan.gridSizeM*scale,width=data.floorPlan.widthM*scale,height=data.floorPlan.heightM*scale
  const all=[...data.zones.map(x=>({...x,kind:'zone'})),...data.booths.map(x=>({...x,kind:'booth'})),...(data.floorPlan.objects||[]).map(x=>({...x,kind:'object'}))],active=all.find(x=>String(x._id||x.id)===selected)
  const ops=(a,b)=>{const out=[];for(const [key,type] of [['zones','zone'],['booths','booth']]){const old=new Map(a[key].map(x=>[String(x._id),x])),next=new Map(b[key].map(x=>[String(x._id),x]));for(const [id,v]of next)if(!eq(old.get(id),v))out.push({type:`${type}.upsert`,id,value:v});for(const id of old.keys())if(!next.has(id))out.push({type:`${type}.delete`,id})}if(!eq(a.floorPlan.objects,b.floorPlan.objects))out.push({type:'objects.set',value:b.floorPlan.objects});const plan={};for(const k of ['widthM','heightM','gridSizeM','pixelsPerMetre','backgroundImage'])if(a.floorPlan[k]!==b.floorPlan[k])plan[k]=b.floorPlan[k];if(Object.keys(plan).length)out.push({type:'floorPlan.update',value:plan});return out}

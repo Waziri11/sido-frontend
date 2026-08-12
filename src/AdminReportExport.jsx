@@ -22,7 +22,7 @@ const configs = {
   },
   revenue: {
     title: ['Export revenue report', 'Pakua ripoti ya mapato'], endpoint: '/admin/reports/revenue.pdf', selection: 'sections',
-    options: [['summary','Revenue summary'],['monthly','Monthly revenue'],['regions','Revenue by region'],['events','Revenue by event'],['transactions','Paid transaction ledger']], filters: ['search','region','event','dates'],
+    options: [['summary','Revenue summary (booking + entrepreneur)'],['monthly','Monthly booking and entrepreneur revenue'],['regions','Revenue by region'],['events','Revenue by event'],['transactions','Paid booking transaction ledger']], filters: ['search','region','event','dates'],
   },
 }
 

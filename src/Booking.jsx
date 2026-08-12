@@ -1,150 +1,3108 @@
-import { useEffect, useState } from 'react'
-import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Area, AreaChart, CartesianGrid, Cell, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { io } from 'socket.io-client'
-import { ArrowLeft, Banknote, Box, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Download, Grid2X2, LayoutDashboard, List, ListTree, LogOut, Map as MapIcon, Minus, MoreHorizontal, Plus, ReceiptText, Search, Settings, ShoppingCart, Store, TicketCheck, TrendingUp, User, UserCog, Users, X } from 'lucide-react'
-import { api, messageOf } from './lib'
-import { Alert, Badge, Button, Card, Field, Input, Textarea } from './components/ui'
-import { BUSINESS_CATEGORIES } from './businessCategories'
-import { useApp } from './context'
-import SiteHeader from './SiteHeader'
-import VisualDesigner from './VisualDesigner'
-import { EventMapDirectory, LocationPicker } from './EventMap'
-import { sidoConfirm, sidoError, sidoSuccess } from './alerts'
+import { useEffect, useState } from "react";
+import {
+  Link,
+  NavLink,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { io } from "socket.io-client";
+import {
+  ArrowLeft,
+  Banknote,
+  Bell,
+  Box,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Download,
+  Grid2X2,
+  LayoutDashboard,
+  List,
+  ListTree,
+  LogOut,
+  Map as MapIcon,
+  Minus,
+  MoreHorizontal,
+  Plus,
+  ReceiptText,
+  Search,
+  Settings,
+  ShoppingCart,
+  Store,
+  TicketCheck,
+  TrendingUp,
+  User,
+  UserCog,
+  Users,
+  X,
+} from "lucide-react";
+import { api, messageOf } from "./lib";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Field,
+  Input,
+  PageSkeleton,
+  Textarea,
+} from "./components/ui";
+import { BUSINESS_CATEGORIES } from "./businessCategories";
+import { useApp } from "./context";
+import SiteHeader from "./SiteHeader";
+import VisualDesigner from "./VisualDesigner";
+import { EventMapDirectory, LocationPicker } from "./EventMap";
+import { sidoConfirm, sidoError, sidoSuccess } from "./alerts";
+import { entrepreneurNavigation, staffNavigation } from "./portalNavigation";
 
-const formatMoney = (minor, currency = 'TZS') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((minor || 0) / 100)
-const date = value => value ? new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'
-const statusTone = status => status === 'PAID' || status === 'booked' || status === 'paid' ? 'green' : status === 'EXPIRED' || status === 'CANCELLED' || status === 'failed' ? 'red' : 'orange'
-const hasEventLocation = event => Number.isFinite(Number(event?.latitude)) && Number.isFinite(Number(event?.longitude))
+const formatMoney = (minor, currency = "TZS") =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format((minor || 0) / 100);
+const date = (value) =>
+  value
+    ? new Date(value).toLocaleDateString(undefined, { dateStyle: "medium" })
+    : "—";
+const statusTone = (status) =>
+  status === "PAID" || status === "booked" || status === "paid"
+    ? "green"
+    : status === "EXPIRED" || status === "CANCELLED" || status === "failed"
+      ? "red"
+      : "orange";
+const hasEventLocation = (event) =>
+  Number.isFinite(Number(event?.latitude)) &&
+  Number.isFinite(Number(event?.longitude));
 
-const entrepreneurNav = [['/portal', LayoutDashboard, 'Overview'], ['/portal/events', MapIcon, 'Book a booth'], ['/portal/bookings', TicketCheck, 'My bookings'], ['/portal/sales', Banknote, 'Sales'], ['/portal/profile', User, 'Profile'], ['/portal/settings', Settings, 'Settings']]
-const adminNav = [['/admin', LayoutDashboard, 'Overview'], ['/admin/events', CalendarDays, 'Events'], ['/admin/revenue', Banknote, 'Revenue'], ['/admin/entrepreneurs', Users, 'Entrepreneurs']]
-const roleAdminNav = role => [...adminNav, ...(['admin', 'superadmin'].includes(role) ? [['/admin/staff', UserCog, 'Staff Management']] : []), ...(role === 'superadmin' ? [['/admin/sessions', Clock3, 'Sessions'], ['/admin/system-logs', ListTree, 'System Logs'], ['/admin/settings', Settings, 'Security Settings']] : [])]
 function BookingShell({ admin = false, children }) {
-  const { logout, session } = useApp(); const navigate = useNavigate(); const [open, setOpen] = useState(false); const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sido_sidebar_collapsed') === 'true'); const nav = admin ? roleAdminNav(session?.user?.role) : entrepreneurNav
-  const toggleSidebar = () => setCollapsed(value => { const next = !value; localStorage.setItem('sido_sidebar_collapsed', String(next)); return next })
-  return <div className={`portal${collapsed ? ' sidebar-collapsed' : ''}`}><aside className={open ? 'open' : ''}><div className="sidebar-brand"><button className="mobile-sidebar-close" onClick={() => setOpen(false)} aria-label="Close navigation"><X/></button></div><div className="panel-label">{admin ? 'Administration' : 'Entrepreneur Panel'}</div><nav>{nav.map(([to, Icon, label]) => <NavLink key={to} to={to} title={collapsed ? label : undefined} end={to === (admin ? '/admin' : '/portal')} onClick={() => setOpen(false)}><Icon size={19}/><span>{label}</span></NavLink>)}</nav><button className="sidebar-logout" title={collapsed ? 'Sign out' : undefined} onClick={async () => { await logout(); navigate('/') }}><LogOut size={19}/><span>Sign out</span></button></aside><div className="portal-main"><SiteHeader portal onMenu={() => setOpen(true)} onSidebarToggle={toggleSidebar} sidebarCollapsed={collapsed}/><main>{children}</main></div></div>
+  const { logout, session, t } = useApp();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("sido_sidebar_collapsed") === "true",
+  );
+  const nav = admin
+    ? staffNavigation(session?.user?.role)
+    : entrepreneurNavigation();
+  const toggleSidebar = () =>
+    setCollapsed((value) => {
+      const next = !value;
+      localStorage.setItem("sido_sidebar_collapsed", String(next));
+      return next;
+    });
+  return (
+    <div className={`portal${collapsed ? " sidebar-collapsed" : ""}`}>
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+      {open && (
+        <button
+          className="sidebar-overlay"
+          aria-label="Close navigation"
+          onClick={() => setOpen(false)}
+        />
+      )}
+      <aside
+        className={open ? "open" : ""}
+        aria-label={
+          admin ? "Administration navigation" : "Entrepreneur navigation"
+        }
+      >
+        <div className="sidebar-brand">
+          <button
+            className="mobile-sidebar-close"
+            onClick={() => setOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X />
+          </button>
+        </div>
+        <div className="panel-label">
+          {admin ? t.portal.admin : t.portal.entrepreneur}
+        </div>
+        <nav>
+          {nav.map(([to, Icon, label]) => (
+            <NavLink
+              key={to}
+              to={to}
+              title={collapsed ? t.labels?.[label] || label : undefined}
+              end={to === (admin ? "/admin" : "/portal")}
+              onClick={() => setOpen(false)}
+            >
+              <Icon size={19} />
+              <span>{t.labels?.[label] || label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <button
+          className="sidebar-logout"
+          title={collapsed ? t.portal.logout : undefined}
+          onClick={async () => {
+            await logout();
+            navigate("/");
+          }}
+        >
+          <LogOut size={19} />
+          <span>{t.portal.logout}</span>
+        </button>
+      </aside>
+      <div className="portal-main">
+        <SiteHeader
+          portal
+          onMenu={() => setOpen(true)}
+          onSidebarToggle={toggleSidebar}
+          sidebarCollapsed={collapsed}
+        />
+        <main id="main-content" tabIndex="-1">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
 }
-function PublicShell({ children }) { return <div className="event-public"><SiteHeader/>{children}</div> }
-function Loading() { return <div className="page-loader"><Clock3 className="spin"/>Loading event information…</div> }
+function PublicShell({ children }) {
+  return (
+    <div className="event-public">
+      <SiteHeader />
+      {children}
+    </div>
+  );
+}
+function Loading() {
+  return <PageSkeleton />;
+}
 
-export function PublicEvents() { const query = useQuery({ queryKey: ['public-events'], queryFn: async () => (await api.get('/public/events')).data.data }); return <PublicShell><EventMapDirectory events={query.data} loading={query.isLoading} error={query.error}/></PublicShell> }
-export function BookingEvents() { const query = useQuery({ queryKey: ['booking-events'], queryFn: async () => (await api.get('/events')).data.data }); return <BookingShell><EventMapDirectory events={query.data} loading={query.isLoading} error={query.error} mode="booking"/></BookingShell> }
+export function PublicEvents() {
+  const query = useQuery({
+    queryKey: ["public-events"],
+    queryFn: async () => (await api.get("/public/events")).data.data,
+  });
+  return (
+    <PublicShell>
+      <EventMapDirectory
+        events={query.data}
+        loading={query.isLoading}
+        error={query.error}
+      />
+    </PublicShell>
+  );
+}
+export function BookingEvents() {
+  const query = useQuery({
+    queryKey: ["booking-events"],
+    queryFn: async () => (await api.get("/events")).data.data,
+  });
+  return (
+    <BookingShell>
+      <EventMapDirectory
+        events={query.data}
+        loading={query.isLoading}
+        error={query.error}
+        mode="booking"
+      />
+    </BookingShell>
+  );
+}
 
-const boothFill = (booth, selected) => selected ? '#162f3a' : ({ available: '#38a169', held: '#718096', reserved: '#718096', booked: '#718096', unavailable: '#cbd5e0' }[booth.status] || '#cbd5e0')
-function FloorMap({ data, selected = [], onSelect = () => {}, publicMode = false, adminMode = false }) {
-  const [mode, setMode] = useState('2d'); const [zoom, setZoom] = useState(1); const [list, setList] = useState(false); const { event, booths } = data
-  const dimensions = mode === '2d' ? [event.mapWidth, event.mapHeight] : [(event.mapWidth + event.mapHeight) * .75, (event.mapWidth + event.mapHeight) * .35]
-  const points = booth => booth.polygon.map(p => mode === '2d' ? `${p.x},${p.y}` : `${(p.x - p.y) * .75 + event.mapHeight * .75},${(p.x + p.y) * .35}`).join(' ')
-  const center = booth => { const p = booth.polygon.reduce((a, x) => ({ x: a.x + x.x / booth.polygon.length, y: a.y + x.y / booth.polygon.length }), { x: 0, y: 0 }); return mode === '2d' ? p : { x: (p.x - p.y) * .75 + event.mapHeight * .75, y: (p.x + p.y) * .35 } }
-  if (adminMode && publicMode) return <AdminOccupancyMap data={data}/>
-  return <Card className="floor-card"><div className="map-toolbar"><div><Button size="sm" variant={mode === '2d' ? 'default' : 'outline'} onClick={() => setMode('2d')}><Grid2X2 size={15}/>2D</Button><Button size="sm" variant={mode === 'iso' ? 'default' : 'outline'} onClick={() => setMode('iso')}><Box size={15}/>Isometric</Button><Button size="sm" variant={list ? 'default' : 'outline'} onClick={() => setList(!list)}><List size={15}/>List</Button></div><div><Button size="icon" variant="outline" onClick={() => setZoom(Math.max(.65, zoom - .15))}><Minus/></Button><span>{Math.round(zoom * 100)}%</span><Button size="icon" variant="outline" onClick={() => setZoom(Math.min(2, zoom + .15))}><Plus/></Button></div></div><div className="map-legend">{[['available','Available'],['held','Held'],['reserved','Reserved'],['booked','Booked'],['unavailable','Unavailable']].map(([key, label]) => <span key={key}><i className={key}/>{label}</span>)}</div>{list ? <div className="booth-list">{booths.map(booth => <button key={booth._id} disabled={publicMode || (!adminMode && booth.status !== 'available')} className={selected.includes(booth._id) ? 'selected' : ''} onClick={() => onSelect(booth)}><strong>{booth.code}</strong><span>{booth.zone} · {booth.tier}</span><span>{formatMoney(booth.priceMinor, event.currency)}</span><Badge tone={statusTone(booth.status)}>{booth.status}</Badge></button>)}</div> : <div className="map-viewport"><svg role="img" aria-label={`${event.name} interactive floor plan`} viewBox={`0 0 ${dimensions[0]} ${dimensions[1]}`} style={{ width: `${zoom * 100}%` }}><rect width="100%" height="100%" fill="#f8f5ef"/><g dangerouslySetInnerHTML={{ __html: data.backgroundSvg || '' }}/>{booths.map(booth => { const c = center(booth); const selectable = adminMode || booth.status === 'available'; return <g key={booth._id} className={`booth-shape ${booth.status}`} role="button" tabIndex={selectable && !publicMode ? 0 : -1} aria-label={`Booth ${booth.code}, ${booth.status}, ${formatMoney(booth.priceMinor)}`} onClick={() => !publicMode && selectable && onSelect(booth)} onKeyDown={e => e.key === 'Enter' && selectable && onSelect(booth)}><polygon points={points(booth)} fill={boothFill(booth, selected.includes(booth._id))}/><text x={c.x} y={c.y} textAnchor="middle" dominantBaseline="central">{booth.code}</text></g>})}</svg></div>}</Card>
+const boothFill = (booth, selected) =>
+  selected
+    ? "#162f3a"
+    : {
+        available: "#38a169",
+        held: "#718096",
+        reserved: "#718096",
+        booked: "#718096",
+        unavailable: "#cbd5e0",
+      }[booth.status] || "#cbd5e0";
+function FloorMap({
+  data,
+  selected = [],
+  onSelect = () => {},
+  publicMode = false,
+  adminMode = false,
+}) {
+  const { language } = useApp();
+  const sw = language === "sw";
+  const [mode, setMode] = useState("2d");
+  const [zoom, setZoom] = useState(1);
+  const [list, setList] = useState(false);
+  const { event, booths } = data;
+  const dimensions =
+    mode === "2d"
+      ? [event.mapWidth, event.mapHeight]
+      : [
+          (event.mapWidth + event.mapHeight) * 0.75,
+          (event.mapWidth + event.mapHeight) * 0.35,
+        ];
+  const points = (booth) =>
+    booth.polygon
+      .map((p) =>
+        mode === "2d"
+          ? `${p.x},${p.y}`
+          : `${(p.x - p.y) * 0.75 + event.mapHeight * 0.75},${(p.x + p.y) * 0.35}`,
+      )
+      .join(" ");
+  const center = (booth) => {
+    const p = booth.polygon.reduce(
+      (a, x) => ({
+        x: a.x + x.x / booth.polygon.length,
+        y: a.y + x.y / booth.polygon.length,
+      }),
+      { x: 0, y: 0 },
+    );
+    return mode === "2d"
+      ? p
+      : {
+          x: (p.x - p.y) * 0.75 + event.mapHeight * 0.75,
+          y: (p.x + p.y) * 0.35,
+        };
+  };
+  if (adminMode && publicMode) return <AdminOccupancyMap data={data} />;
+  return (
+    <Card className="floor-card">
+      <div className="map-toolbar">
+        <div>
+          <Button
+            size="sm"
+            variant={mode === "2d" ? "default" : "outline"}
+            onClick={() => setMode("2d")}
+          >
+            <Grid2X2 size={15} />
+            2D
+          </Button>
+          <Button
+            size="sm"
+            variant={mode === "iso" ? "default" : "outline"}
+            onClick={() => setMode("iso")}
+          >
+            <Box size={15} />
+            {sw ? "Muonekano wa 3D" : "Isometric"}
+          </Button>
+          <Button
+            size="sm"
+            variant={list ? "default" : "outline"}
+            onClick={() => setList(!list)}
+          >
+            <List size={15} />
+            {sw ? "Orodha" : "List"}
+          </Button>
+        </div>
+        <div>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => setZoom(Math.max(0.65, zoom - 0.15))}
+          >
+            <Minus />
+          </Button>
+          <span>{Math.round(zoom * 100)}%</span>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => setZoom(Math.min(2, zoom + 0.15))}
+          >
+            <Plus />
+          </Button>
+        </div>
+      </div>
+      <div className="map-legend">
+        {[
+          ["available", sw ? "Linapatikana" : "Available"],
+          ["held", sw ? "Limeshikiliwa" : "Held"],
+          ["reserved", sw ? "Limehifadhiwa" : "Reserved"],
+          ["booked", sw ? "Limechukuliwa" : "Booked"],
+          ["unavailable", sw ? "Halipatikani" : "Unavailable"],
+        ].map(([key, label]) => (
+          <span key={key}>
+            <i className={key} />
+            {label}
+          </span>
+        ))}
+      </div>
+      {list ? (
+        <div className="booth-list">
+          {booths.map((booth) => (
+            <button
+              key={booth._id}
+              disabled={
+                publicMode || (!adminMode && booth.status !== "available")
+              }
+              className={selected.includes(booth._id) ? "selected" : ""}
+              aria-pressed={selected.includes(booth._id)}
+              onClick={() => onSelect(booth)}
+            >
+              <strong>{booth.code}</strong>
+              <span>
+                {booth.zone} · {booth.tier}
+              </span>
+              <span>{formatMoney(booth.priceMinor, event.currency)}</span>
+              <Badge tone={statusTone(booth.status)}>{booth.status}</Badge>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="map-viewport">
+          <svg
+            role="img"
+            aria-label={`${event.name} interactive floor plan`}
+            viewBox={`0 0 ${dimensions[0]} ${dimensions[1]}`}
+            style={{ width: `${zoom * 100}%` }}
+          >
+            <rect width="100%" height="100%" fill="#f8f5ef" />
+            <g dangerouslySetInnerHTML={{ __html: data.backgroundSvg || "" }} />
+            {booths.map((booth) => {
+              const c = center(booth);
+              const selectable = adminMode || booth.status === "available";
+              return (
+                <g
+                  key={booth._id}
+                  className={`booth-shape ${booth.status}`}
+                  role="button"
+                  tabIndex={selectable && !publicMode ? 0 : -1}
+                  aria-pressed={selected.includes(booth._id)}
+                  aria-disabled={!selectable || publicMode}
+                  aria-label={`Booth ${booth.code}, ${booth.status}, ${formatMoney(booth.priceMinor)}`}
+                  onClick={() => !publicMode && selectable && onSelect(booth)}
+                  onKeyDown={(e) => {
+                    if (
+                      ["Enter", " "].includes(e.key) &&
+                      selectable &&
+                      !publicMode
+                    ) {
+                      e.preventDefault();
+                      onSelect(booth);
+                    }
+                  }}
+                >
+                  <polygon
+                    points={points(booth)}
+                    fill={boothFill(booth, selected.includes(booth._id))}
+                  />
+                  <text
+                    x={c.x}
+                    y={c.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                  >
+                    {booth.code}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function AdminOccupancyMap({ data }) {
-  const [selected, setSelected] = useState(null)
-  const application = selected && data.applications?.find(item => item.booths.some(booth => String(booth._id) === String(selected._id)))
-  const transaction = application && data.transactions?.find(item => item.orderNumber === application.order?.number)
-  return <><FloorMap data={data} selected={selected ? [selected._id] : []} onSelect={setSelected} adminMode/>{selected && <BoothOccupantDetails booth={selected} application={application} transaction={transaction} onClose={() => setSelected(null)}/>}<Card className="event-manage-table"><div className="panel-heading"><div><h2>Reported sales by booth</h2><p>Entrepreneur-reported business sales, separate from booth booking revenue.</p></div></div><div className="table-wrap"><table><thead><tr><th>Booth</th><th>Status</th><th>Reported days</th><th>Reported sales</th></tr></thead><tbody>{data.booths.map(booth => <tr key={booth._id}><td><strong>Booth {booth.code}</strong><span>{booth.zone} · {booth.tier}</span></td><td><Badge tone={statusTone(booth.status)}>{booth.status}</Badge></td><td>{booth.reportedDays || 0}</td><td className="transaction-amount">{formatMoney(booth.reportedSalesMinor, 'TZS')}</td></tr>)}</tbody></table></div></Card></>
+  const [selected, setSelected] = useState(null);
+  const application =
+    selected &&
+    data.applications?.find((item) =>
+      item.booths.some((booth) => String(booth._id) === String(selected._id)),
+    );
+  const transaction =
+    application &&
+    data.transactions?.find(
+      (item) => item.orderNumber === application.order?.number,
+    );
+  return (
+    <>
+      <FloorMap
+        data={data}
+        selected={selected ? [selected._id] : []}
+        onSelect={setSelected}
+        adminMode
+      />
+      {selected && (
+        <BoothOccupantDetails
+          booth={selected}
+          application={application}
+          transaction={transaction}
+          onClose={() => setSelected(null)}
+        />
+      )}
+      <Card className="event-manage-table">
+        <div className="panel-heading">
+          <div>
+            <h2>Reported sales by booth</h2>
+            <p>
+              Entrepreneur-reported business sales, separate from booth booking
+              revenue.
+            </p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Booth</th>
+                <th>Status</th>
+                <th>Reported days</th>
+                <th>Reported sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.booths.map((booth) => (
+                <tr key={booth._id}>
+                  <td>
+                    <strong>Booth {booth.code}</strong>
+                    <span>
+                      {booth.zone} · {booth.tier}
+                    </span>
+                  </td>
+                  <td>
+                    <Badge tone={statusTone(booth.status)}>
+                      {booth.status}
+                    </Badge>
+                  </td>
+                  <td>{booth.reportedDays || 0}</td>
+                  <td className="transaction-amount">
+                    {formatMoney(booth.reportedSalesMinor, "TZS")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </>
+  );
 }
 
-export function PublicEvent() { const { slug } = useParams(); const [search, setSearch] = useState(''); const query = useQuery({ queryKey: ['public-event', slug], queryFn: async () => (await api.get(`/public/events/${slug}`)).data.data }); if (query.isLoading) return <PublicShell><Loading/></PublicShell>; if (query.error) return <PublicShell><Alert>{messageOf(query.error)}</Alert></PublicShell>; const data = query.data; const directory = data.directory.filter(x => !search || `${x.businessName} ${x.businessType}`.toLowerCase().includes(search.toLowerCase())); return <PublicShell><main className="public-event-main"><Link to="/events" className="back-link"><ArrowLeft size={16}/>All events</Link><div className="page-head"><div><h1>{data.event.name}</h1><p>{data.event.venue} · {date(data.event.startsAt)}–{date(data.event.endsAt)}</p></div><Button asChild><Link to="/login">Book a booth</Link></Button></div><FloorMap data={data} publicMode/><section className="directory"><div className="page-head"><div><h2>Exhibitor directory</h2><p>Discover businesses participating in this event.</p></div><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search company or industry"/></div><div className="directory-grid">{directory.map(x => <Card key={x.id}><Store/><h3>{x.businessName}</h3><p>{x.businessType}</p><span>Booth {x.boothCodes.join(', ')} · {x.zone}</span>{x.website && <a href={x.website} target="_blank" rel="noreferrer">Visit website</a>}</Card>)}{!directory.length && <Card className="empty">No matching exhibitors yet.</Card>}</div></section></main></PublicShell> }
+export function PublicEvent() {
+  const { slug } = useParams();
+  const [search, setSearch] = useState("");
+  const query = useQuery({
+    queryKey: ["public-event", slug],
+    queryFn: async () => (await api.get(`/public/events/${slug}`)).data.data,
+  });
+  if (query.isLoading)
+    return (
+      <PublicShell>
+        <Loading />
+      </PublicShell>
+    );
+  if (query.error)
+    return (
+      <PublicShell>
+        <Alert>{messageOf(query.error)}</Alert>
+      </PublicShell>
+    );
+  const data = query.data;
+  const directory = data.directory.filter(
+    (x) =>
+      !search ||
+      `${x.businessName} ${x.businessType}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+  );
+  return (
+    <PublicShell>
+      <main className="public-event-main">
+        <Link to="/events" className="back-link">
+          <ArrowLeft size={16} />
+          All events
+        </Link>
+        <div className="page-head">
+          <div>
+            <h1>{data.event.name}</h1>
+            <p>
+              {data.event.venue} · {date(data.event.startsAt)}–
+              {date(data.event.endsAt)}
+            </p>
+          </div>
+          <Button asChild>
+            <Link to="/login">Book a booth</Link>
+          </Button>
+        </div>
+        <FloorMap data={data} publicMode />
+        <section className="directory">
+          <div className="page-head">
+            <div>
+              <h2>Exhibitor directory</h2>
+              <p>Discover businesses participating in this event.</p>
+            </div>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search company or industry"
+            />
+          </div>
+          <div className="directory-grid">
+            {directory.map((x) => (
+              <Card key={x.id}>
+                <Store />
+                <h3>{x.businessName}</h3>
+                <p>{x.businessType}</p>
+                <span>
+                  Booth {x.boothCodes.join(", ")} · {x.zone}
+                </span>
+                {x.website && (
+                  <a href={x.website} target="_blank" rel="noreferrer">
+                    Visit website
+                  </a>
+                )}
+              </Card>
+            ))}
+            {!directory.length && (
+              <Card className="empty">No matching exhibitors yet.</Card>
+            )}
+          </div>
+        </section>
+      </main>
+    </PublicShell>
+  );
+}
 
 export function BookingDetail() {
-  const { id } = useParams(); const { session } = useApp(); const client = useQueryClient(); const [selected, setSelected] = useState([]); const [filter, setFilter] = useState({ zone: '', tier: '', max: '' }); const [hold, setHold] = useState(null); const [payment, setPayment] = useState(null); const [paid, setPaid] = useState(false); const [quantities, setQuantities] = useState({}); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  const query = useQuery({ queryKey: ['event-map', id], queryFn: async () => (await api.get(`/events/${id}/map`)).data.data })
-  useEffect(() => { const socket = io(import.meta.env.VITE_SOCKET_URL || location.origin, { withCredentials: true }); socket.emit('event.join', id); ['booth.state.changed','reservation.expired','payment.updated','event.updated'].forEach(name => socket.on(name, () => client.invalidateQueries({ queryKey: ['event-map', id] }))); return () => socket.disconnect() }, [id, client])
-  const toggle = booth => setSelected(current => current.includes(booth._id) ? current.filter(x => x !== booth._id) : [...current, booth._id])
-  const reserve = async () => { setBusy(true); setError(''); try { const { data } = await api.post(`/events/${id}/holds`, { boothIds: selected }); setHold(data.data); await client.invalidateQueries({ queryKey: ['event-map', id] }) } catch (e) { setError(messageOf(e)); await client.invalidateQueries({ queryKey: ['event-map', id] }) } finally { setBusy(false) } }
-  const requestControlNumber = async () => { setBusy(true); setError(''); try { const addOns = Object.entries(quantities).map(([addOnId, quantity]) => ({ addOnId, quantity: Number(quantity) })).filter(x => x.quantity > 0); const { data } = await api.post(`/reservations/${hold._id}/checkout`, { addOns }); setPayment(data.data); await Promise.all([client.invalidateQueries({ queryKey: ['event-map', id] }), client.invalidateQueries({ queryKey: ['my-bookings'] })]) } catch (e) { setError(messageOf(e)) } finally { setBusy(false) } }
-  const simulatePayment = async () => { setBusy(true); setError(''); try { await api.post(`/payments/${payment.payment._id}/sandbox/paid`); setPaid(true); await Promise.all([client.invalidateQueries({ queryKey: ['event-map', id] }), client.invalidateQueries({ queryKey: ['my-bookings'] })]) } catch (e) { setError(messageOf(e)) } finally { setBusy(false) } }
-  if (query.isLoading) return <BookingShell><Loading/></BookingShell>; if (query.error) return <BookingShell><Alert>{messageOf(query.error)}</Alert></BookingShell>
-  const data = query.data; const filtered = { ...data, booths: data.booths.filter(x => (!filter.zone || x.zone === filter.zone) && (!filter.tier || x.tier === filter.tier) && (!filter.max || x.priceMinor <= Number(filter.max) * 100)) }; const chosen = data.booths.filter(x => selected.includes(x._id)); const total = chosen.reduce((n, x) => n + x.priceMinor, 0)
-  const profile = session?.profile || {}; const user = session?.user || {}; const addOnTotal = data.addOns.reduce((sum, item) => sum + item.priceMinor * Number(quantities[item._id] || 0), 0)
-  const now = Date.now(); const bookingOpens = new Date(data.event.bookingOpensAt).getTime(); const bookingCloses = new Date(data.event.bookingClosesAt).getTime(); const bookingAvailable = !data.event.salesPaused && now >= bookingOpens && now <= bookingCloses; const bookingMessage = data.event.salesPaused ? 'Bookings are temporarily paused' : now < bookingOpens ? `Bookings open ${dateTime(data.event.bookingOpensAt)}` : now > bookingCloses ? `Bookings closed ${dateTime(data.event.bookingClosesAt)}` : ''
-  return <BookingShell><Link to="/portal/events" className="back-link"><ArrowLeft size={16}/>Events</Link><div className="page-head booking-title"><div><h1>{data.event.name}</h1><p>{data.event.venue} · Booking closes {date(data.event.bookingClosesAt)}</p></div></div>{error && <Alert>{error}</Alert>}<div className="booking-layout"><div><Card className="map-filters"><Field label="Zone"><select value={filter.zone} onChange={e => setFilter({ ...filter, zone: e.target.value })}><option value="">All zones</option>{[...new Set(data.booths.map(x => x.zone))].map(x => <option key={x}>{x}</option>)}</select></Field><Field label="Tier"><select value={filter.tier} onChange={e => setFilter({ ...filter, tier: e.target.value })}><option value="">All tiers</option>{[...new Set(data.booths.map(x => x.tier))].map(x => <option key={x}>{x}</option>)}</select></Field><Field label="Maximum price"><Input type="number" value={filter.max} onChange={e => setFilter({ ...filter, max: e.target.value })} placeholder="TZS"/></Field></Card><FloorMap data={filtered} selected={selected} onSelect={toggle}/></div><aside className="selection-panel"><Card className="checkout-card"><div className="checkout-card-header"><span className="checkout-card-icon"><ShoppingCart/></span><div><h2>{paid ? 'Booking confirmed' : hold ? 'Verify and pay' : 'Your selection'}</h2><p>{hold ? "Confirm your information and complete payment." : "Review the booths you want to reserve."}</p></div></div>{chosen.map(x => <div className="selected-booth" key={x._id}><div><strong>Booth {x.code}</strong><span className="selected-booth-meta"><b>{x.tier}</b> · {x.zone}</span><span>{x.widthM}m × {x.heightM}m</span><span>{x.amenities?.length ? x.amenities.join(", ") : "Standard allocation"}</span></div><div className="selected-booth-price"><button type="button" className="remove-selected-booth" onClick={() => toggle(x)} aria-label={"Remove booth " + x.code}><X/>Remove</button><strong>{formatMoney(x.priceMinor)}</strong></div></div>)}{!chosen.length && <p className="muted">Select an available booth on the map. Additional booths must be adjacent.</p>}<div className="selection-total"><span>Booths total</span><strong>{formatMoney(total)}</strong></div>{!hold ? <>{bookingMessage && <div className="booking-availability"><Clock3/><span>{bookingMessage}</span></div>}<Button disabled={!chosen.length || busy || !bookingAvailable} onClick={reserve}>{busy ? "Preparing checkout…" : bookingAvailable ? "Checkout" : "Checkout unavailable"}</Button></> : paid ? <div className="booking-success"><Check size={28}/><strong>Booth obtained</strong><p>Your payment was received and the selected booth is now confirmed. It is marked gray on the event map.</p><Button asChild><Link to="/portal/bookings">View my bookings</Link></Button></div> : <><div className="checkout-identity"><h3>Business information</h3><dl><div><dt>Business name</dt><dd>{profile.businessName || 'Not provided'}</dd></div><div><dt>Business type</dt><dd>{profile.businessType || 'Not provided'}</dd></div><div><dt>Location</dt><dd>{[profile.district, profile.region].filter(Boolean).join(', ') || 'Not provided'}</dd></div><div><dt>TIN</dt><dd>{profile.tin || 'Not provided'}</dd></div></dl><h3>Personal information</h3><dl><div><dt>Entrepreneur</dt><dd>{[user.firstName, user.lastName].filter(Boolean).join(' ')}</dd></div><div><dt>Email</dt><dd>{user.email}</dd></div><div><dt>Phone</dt><dd>{user.phoneNumber || 'Not provided'}</dd></div></dl><Link to="/portal/profile" className="checkout-edit-link">Edit profile information</Link></div>{!payment && <><h3>Add-on services</h3>{data.addOns.map(item => <div className="addon-row" key={item._id}><div><strong>{item.name.en}</strong><span>{formatMoney(item.priceMinor)} each</span></div><Input type="number" min="0" max={item.maxPerOrder} value={quantities[item._id] || 0} onChange={e => setQuantities({ ...quantities, [item._id]: e.target.value })}/></div>)}<div className="selection-total"><span>Amount to pay</span><strong>{formatMoney(total + addOnTotal, data.event.currency)}</strong></div><Button disabled={busy} onClick={requestControlNumber}>{busy ? 'Requesting…' : 'Request control number'}</Button></>}{payment && <div className="control-number"><span>gEPG control number</span><strong>{payment.payment.controlNumber}</strong><p>Amount: {formatMoney(payment.payment.amountMinor, payment.payment.currency)}</p><Button disabled={busy} onClick={simulatePayment}>{busy ? 'Processing payment…' : 'Simulate payment'}</Button></div>}</>}</Card></aside></div></BookingShell>
+  const { id } = useParams();
+  const { session, t, language } = useApp();
+  const client = useQueryClient();
+  const [selected, setSelected] = useState([]);
+  const [filter, setFilter] = useState({ zone: "", tier: "", max: "" });
+  const [hold, setHold] = useState(null);
+  const [payment, setPayment] = useState(null);
+  const [paid, setPaid] = useState(false);
+  const [quantities, setQuantities] = useState({});
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [remaining, setRemaining] = useState("");
+  const query = useQuery({
+    queryKey: ["event-map", id],
+    queryFn: async () => (await api.get(`/events/${id}/map`)).data.data,
+  });
+  const bookingsQuery = useQuery({
+    queryKey: ["my-bookings"],
+    queryFn: async () => (await api.get("/entrepreneur/bookings")).data.data,
+    refetchInterval: hold?.status === "PAYMENT_PENDING" ? 10000 : false,
+  });
+  useEffect(() => {
+    const data = bookingsQuery.data;
+    if (!data) return;
+    const active = data.reservations.find(
+      (item) =>
+        String(item.event?._id || item.event) === id &&
+        ["HELD", "PAYMENT_PENDING", "PAID"].includes(item.status),
+    );
+    if (!active) return;
+    const order = data.orders.find(
+      (item) => String(item.reservation) === String(active._id),
+    );
+    const currentPayment =
+      order &&
+      data.payments.find((item) => String(item.order) === String(order._id));
+    setHold(active);
+    setSelected(active.booths.map((item) => String(item._id || item)));
+    if (currentPayment)
+      setPayment({ payment: currentPayment, order, reservation: active });
+    setPaid(active.status === "PAID" || currentPayment?.status === "paid");
+  }, [bookingsQuery.data, id]);
+  useEffect(() => {
+    if (!hold?.expiresAt || paid) return;
+    const tick = () => {
+      const seconds = Math.max(
+        0,
+        Math.floor((new Date(hold.expiresAt).getTime() - Date.now()) / 1000),
+      );
+      setRemaining(
+        seconds
+          ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+          : "Expired",
+      );
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [hold?.expiresAt, paid]);
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_SOCKET_URL || location.origin, {
+      withCredentials: true,
+    });
+    socket.emit("event.join", id);
+    [
+      "booth.state.changed",
+      "reservation.expired",
+      "payment.updated",
+      "event.updated",
+    ].forEach((name) =>
+      socket.on(name, () =>
+        client.invalidateQueries({ queryKey: ["event-map", id] }),
+      ),
+    );
+    return () => socket.disconnect();
+  }, [id, client]);
+  const toggle = (booth) =>
+    setSelected((current) =>
+      current.includes(booth._id)
+        ? current.filter((x) => x !== booth._id)
+        : [...current, booth._id],
+    );
+  const reserve = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post(`/events/${id}/holds`, {
+        boothIds: selected,
+      });
+      setHold(data.data);
+      await client.invalidateQueries({ queryKey: ["event-map", id] });
+    } catch (e) {
+      setError(messageOf(e));
+      await client.invalidateQueries({ queryKey: ["event-map", id] });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const requestControlNumber = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const addOns = Object.entries(quantities)
+        .map(([addOnId, quantity]) => ({ addOnId, quantity: Number(quantity) }))
+        .filter((x) => x.quantity > 0);
+      const { data } = await api.post(`/reservations/${hold._id}/checkout`, {
+        addOns,
+      });
+      setPayment(data.data);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["event-map", id] }),
+        client.invalidateQueries({ queryKey: ["my-bookings"] }),
+      ]);
+    } catch (e) {
+      setError(messageOf(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const simulatePayment = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/payments/${payment.payment._id}/sandbox/paid`);
+      setPaid(true);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["event-map", id] }),
+        client.invalidateQueries({ queryKey: ["my-bookings"] }),
+      ]);
+    } catch (e) {
+      setError(messageOf(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const cancelHold = async () => {
+    if (
+      !(await sidoConfirm({
+        title:
+          language === "sw"
+            ? "Ughairi nafasi hii?"
+            : "Cancel this reservation?",
+        text:
+          language === "sw"
+            ? "Mabanda yaliyochaguliwa yatapatikana mara moja kwa wajasiriamali wengine."
+            : "The selected booths will immediately become available to other entrepreneurs.",
+        confirmText: t.booking.cancelReservation,
+        danger: true,
+      }))
+    )
+      return;
+    setBusy(true);
+    try {
+      await api.post(`/entrepreneur/reservations/${hold._id}/cancel`);
+      setHold(null);
+      setPayment(null);
+      setSelected([]);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["event-map", id] }),
+        client.invalidateQueries({ queryKey: ["my-bookings"] }),
+      ]);
+    } catch (e) {
+      setError(messageOf(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (query.isLoading)
+    return (
+      <BookingShell>
+        <Loading />
+      </BookingShell>
+    );
+  if (query.error)
+    return (
+      <BookingShell>
+        <Alert>{messageOf(query.error)}</Alert>
+      </BookingShell>
+    );
+  const data = query.data;
+  const filtered = {
+    ...data,
+    booths: data.booths.filter(
+      (x) =>
+        (!filter.zone || x.zone === filter.zone) &&
+        (!filter.tier || x.tier === filter.tier) &&
+        (!filter.max || x.priceMinor <= Number(filter.max) * 100),
+    ),
+  };
+  const chosen = data.booths.filter((x) => selected.includes(x._id));
+  const total = chosen.reduce((n, x) => n + x.priceMinor, 0);
+  const profile = session?.profile || {};
+  const user = session?.user || {};
+  const addOnTotal = data.addOns.reduce(
+    (sum, item) => sum + item.priceMinor * Number(quantities[item._id] || 0),
+    0,
+  );
+  const now = Date.now();
+  const bookingOpens = new Date(data.event.bookingOpensAt).getTime();
+  const bookingCloses = new Date(data.event.bookingClosesAt).getTime();
+  const bookingAvailable =
+    !data.event.salesPaused && now >= bookingOpens && now <= bookingCloses;
+  const bookingMessage = data.event.salesPaused
+    ? "Bookings are temporarily paused"
+    : now < bookingOpens
+      ? `Bookings open ${dateTime(data.event.bookingOpensAt)}`
+      : now > bookingCloses
+        ? `Bookings closed ${dateTime(data.event.bookingClosesAt)}`
+        : "";
+  return (
+    <BookingShell>
+      <Link to="/portal/events" className="back-link">
+        <ArrowLeft size={16} />
+        Events
+      </Link>
+      <div className="page-head booking-title">
+        <div>
+          <h1>{data.event.name}</h1>
+          <p>
+            {data.event.venue} · Booking closes{" "}
+            {date(data.event.bookingClosesAt)}
+          </p>
+        </div>
+      </div>
+      {error && <Alert>{error}</Alert>}
+      <div className="checkout-progress" aria-label="Checkout progress">
+        {[
+          t.booking.select,
+          t.booking.review,
+          t.booking.addons,
+          t.booking.control,
+          t.booking.pay,
+          t.booking.confirmation,
+        ].map((label, index) => (
+          <span
+            key={label}
+            className={
+              (paid ? 5 : payment ? 4 : hold ? 1 : selected.length ? 0 : -1) >=
+              index
+                ? "active"
+                : ""
+            }
+          >
+            {index + 1}. {label}
+          </span>
+        ))}
+      </div>
+      <div className="booking-layout">
+        <div>
+          <Card className="map-filters">
+            <Field label="Zone">
+              <select
+                value={filter.zone}
+                onChange={(e) => setFilter({ ...filter, zone: e.target.value })}
+              >
+                <option value="">All zones</option>
+                {[...new Set(data.booths.map((x) => x.zone))].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Tier">
+              <select
+                value={filter.tier}
+                onChange={(e) => setFilter({ ...filter, tier: e.target.value })}
+              >
+                <option value="">All tiers</option>
+                {[...new Set(data.booths.map((x) => x.tier))].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Maximum price">
+              <Input
+                type="number"
+                value={filter.max}
+                onChange={(e) => setFilter({ ...filter, max: e.target.value })}
+                placeholder="TZS"
+              />
+            </Field>
+          </Card>
+          <FloorMap
+            data={filtered}
+            selected={selected}
+            onSelect={hold ? undefined : toggle}
+          />
+        </div>
+        <aside className="selection-panel">
+          <Card className="checkout-card">
+            <div className="checkout-card-header">
+              <span className="checkout-card-icon">
+                <ShoppingCart />
+              </span>
+              <div>
+                <h2>
+                  {paid
+                    ? t.booking.confirmed
+                    : hold
+                      ? t.booking.verifyPay
+                      : t.booking.selection}
+                </h2>
+                <p>
+                  {hold
+                    ? `${t.booking.remaining}: ${remaining}`
+                    : `${t.booking.review}. ${t.booking.adjacent}`}
+                </p>
+              </div>
+            </div>
+            {chosen.map((x) => (
+              <div className="selected-booth" key={x._id}>
+                <div>
+                  <strong>Booth {x.code}</strong>
+                  <span className="selected-booth-meta">
+                    <b>{x.tier}</b> · {x.zone}
+                  </span>
+                  <span>
+                    {x.widthM}m × {x.heightM}m
+                  </span>
+                  <span>
+                    {x.amenities?.length
+                      ? x.amenities.join(", ")
+                      : "Standard allocation"}
+                  </span>
+                </div>
+                <div className="selected-booth-price">
+                  {!hold && (
+                    <button
+                      type="button"
+                      className="remove-selected-booth"
+                      onClick={() => toggle(x)}
+                      aria-label={"Remove booth " + x.code}
+                    >
+                      <X />
+                      Remove
+                    </button>
+                  )}
+                  <strong>{formatMoney(x.priceMinor)}</strong>
+                </div>
+              </div>
+            ))}
+            {!chosen.length && (
+              <p className="muted">
+                Select an available booth on the map. Additional booths must be
+                adjacent.
+              </p>
+            )}
+            <div className="selection-total">
+              <span>{t.booking.total}</span>
+              <strong>{formatMoney(total)}</strong>
+            </div>
+            {!hold ? (
+              <>
+                {bookingMessage && (
+                  <div className="booking-availability">
+                    <Clock3 />
+                    <span>{bookingMessage}</span>
+                  </div>
+                )}
+                <Button
+                  disabled={!chosen.length || busy || !bookingAvailable}
+                  onClick={reserve}
+                >
+                  {busy
+                    ? "Preparing checkout…"
+                    : bookingAvailable
+                      ? t.booking.checkout
+                      : t.booking.unavailable}
+                </Button>
+              </>
+            ) : paid ? (
+              <div className="booking-success">
+                <Check size={28} />
+                <strong>Booth obtained</strong>
+                <p>
+                  Your payment was received and the selected booth is now
+                  confirmed.
+                </p>
+                <Button asChild>
+                  <Link to="/portal/bookings">View booking timeline</Link>
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="checkout-identity">
+                  <h3>Business information</h3>
+                  <dl>
+                    <div>
+                      <dt>Business name</dt>
+                      <dd>{profile.businessName || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Business type</dt>
+                      <dd>{profile.businessType || "Not provided"}</dd>
+                    </div>
+                    <div>
+                      <dt>Location</dt>
+                      <dd>
+                        {[profile.district, profile.region]
+                          .filter(Boolean)
+                          .join(", ") || "Not provided"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>TIN</dt>
+                      <dd>{profile.tin || "Not provided"}</dd>
+                    </div>
+                  </dl>
+                  <h3>Personal information</h3>
+                  <dl>
+                    <div>
+                      <dt>Entrepreneur</dt>
+                      <dd>
+                        {[user.firstName, user.lastName]
+                          .filter(Boolean)
+                          .join(" ")}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Email</dt>
+                      <dd>{user.email}</dd>
+                    </div>
+                    <div>
+                      <dt>Phone</dt>
+                      <dd>{user.phoneNumber || "Not provided"}</dd>
+                    </div>
+                  </dl>
+                  <Link to="/portal/profile" className="checkout-edit-link">
+                    Edit profile information
+                  </Link>
+                </div>
+                {!payment && (
+                  <>
+                    <h3>Add-on services</h3>
+                    {data.addOns.map((item) => (
+                      <div className="addon-row" key={item._id}>
+                        <div>
+                          <strong>{item.name.en}</strong>
+                          <span>{formatMoney(item.priceMinor)} each</span>
+                        </div>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={item.maxPerOrder}
+                          value={quantities[item._id] || 0}
+                          onChange={(e) =>
+                            setQuantities({
+                              ...quantities,
+                              [item._id]: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                    <div className="selection-total">
+                      <span>Amount to pay</span>
+                      <strong>
+                        {formatMoney(total + addOnTotal, data.event.currency)}
+                      </strong>
+                    </div>
+                    <Button disabled={busy} onClick={requestControlNumber}>
+                      {busy ? "Requesting…" : "Request control number"}
+                    </Button>
+                  </>
+                )}
+                {payment && (
+                  <div className="control-number">
+                    <span>{t.booking.controlNumber}</span>
+                    <strong>{payment.payment.controlNumber}</strong>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          payment.payment.controlNumber,
+                        )
+                      }
+                    >
+                      {t.booking.copyControl}
+                    </Button>
+                    <p>
+                      Pay{" "}
+                      {formatMoney(
+                        payment.payment.amountMinor,
+                        payment.payment.currency,
+                      )}{" "}
+                      through your bank or mobile-money provider, then return
+                      here. Status refreshes automatically.
+                    </p>
+                    {import.meta.env.DEV && (
+                      <Button disabled={busy} onClick={simulatePayment}>
+                        {busy
+                          ? "Processing payment…"
+                          : "Simulate development payment"}
+                      </Button>
+                    )}
+                  </div>
+                )}
+                <Button variant="ghost" disabled={busy} onClick={cancelHold}>
+                  {t.booking.cancelReservation}
+                </Button>
+              </>
+            )}
+          </Card>
+        </aside>
+      </div>
+    </BookingShell>
+  );
+}
+
+const bookingSteps = [
+  ["HELD", "Booth held"],
+  ["PAYMENT_PENDING", "Awaiting payment"],
+  ["PAID", "Payment confirmed"],
+];
+function BookingTimeline({ reservation, order }) {
+  const { language } = useApp();
+  const translatedSteps =
+    language === "sw"
+      ? [
+          ["HELD", "Banda limeshikiliwa"],
+          ["PAYMENT_PENDING", "Inasubiri malipo"],
+          ["PAID", "Malipo yamethibitishwa"],
+        ]
+      : bookingSteps;
+  const current = bookingSteps.findIndex(
+    ([status]) => status === reservation.status,
+  );
+  const terminal = [
+    "EXPIRED",
+    "CANCELLED",
+    "PAYMENT_FAILED",
+    "REFUNDED",
+  ].includes(reservation.status);
+  return (
+    <ol className={`booking-timeline${terminal ? " terminal" : ""}`}>
+      {translatedSteps.map(([status, label], index) => (
+        <li key={status} className={index <= current ? "done" : ""}>
+          <i>{index < current ? "✓" : index + 1}</i>
+          <span>{label}</span>
+        </li>
+      ))}
+      {order?.status === "paid" && (
+        <>
+          <li className="done">
+            <i>✓</i>
+            <span>
+              {language === "sw" ? "Banda limetengwa" : "Booth allocated"}
+            </span>
+          </li>
+          <li className="done">
+            <i>✓</i>
+            <span>
+              {language === "sw" ? "Pasi inapatikana" : "Pass available"}
+            </span>
+          </li>
+        </>
+      )}
+      {terminal && (
+        <li className="failed">
+          <i>!</i>
+          <span>{reservation.status.replaceAll("_", " ").toLowerCase()}</span>
+        </li>
+      )}
+    </ol>
+  );
 }
 
 export function MyBookings() {
-  const client = useQueryClient(); const [busy, setBusy] = useState(''); const query = useQuery({ queryKey: ['my-bookings'], queryFn: async () => (await api.get('/entrepreneur/bookings')).data.data }); if (query.isLoading) return <BookingShell><Loading/></BookingShell>
-  if (query.error) return <BookingShell><Alert>{messageOf(query.error)}</Alert></BookingShell>
-  const paymentMap = new Map(query.data.payments.map(x => [String(x.order), x])); const orderMap = new Map(query.data.orders.map(x => [String(x.reservation), x]))
-  const simulate = async payment => { setBusy(payment._id); await api.post(`/payments/${payment._id}/sandbox/paid`); await client.invalidateQueries({ queryKey: ['my-bookings'] }); setBusy('') }
-  return <BookingShell><div className="page-head"><div><h1>My bookings</h1><p>Track booth holds, payments, passes, and daily event sales.</p></div><Button asChild><Link to="/portal/sales"><Banknote size={16}/>Add daily sales</Link></Button></div><div className="booking-records">{query.data.reservations.map(reservation => { const order = orderMap.get(String(reservation._id)); const payment = order && paymentMap.get(String(order._id)); return <Card key={reservation._id} className="booking-record"><div><Badge tone={statusTone(reservation.status)}>{reservation.status.replace('_', ' ')}</Badge><h2>{reservation.event?.name}</h2><p>{reservation.booths.map(x => `Booth ${x.code}`).join(', ')} · {reservation.event?.venue}</p></div>{order && <div className="payment-summary"><span>Order <strong>{order.number}</strong></span><span>Total <strong>{formatMoney(order.totalMinor, order.currency)}</strong></span>{payment && <span>gEPG control number <strong>{payment.controlNumber}</strong></span>}</div>}<div className="record-actions">{payment?.status === 'pending' && <Button disabled={busy === payment._id} onClick={() => simulate(payment)}>Simulate sandbox payment</Button>}{order?.status === 'paid' && <><Button asChild><Link to="/portal/sales"><Banknote size={16}/>Add daily sales</Link></Button><Button variant="outline" asChild><a href={`/api/orders/${order._id}/invoice.pdf`}><Download size={16}/>Invoice</a></Button><Button variant="outline" asChild><a href={`/api/orders/${order._id}/pass.pdf`}><TicketCheck size={16}/>Setup pass</a></Button></>}</div></Card>})}{!query.data.reservations.length && <Card className="empty">You have not reserved a booth yet.</Card>}</div></BookingShell>
+  const { t, language } = useApp();
+  const client = useQueryClient();
+  const [busy, setBusy] = useState("");
+  const query = useQuery({
+    queryKey: ["my-bookings"],
+    queryFn: async () => (await api.get("/entrepreneur/bookings")).data.data,
+  });
+  if (query.isLoading)
+    return (
+      <BookingShell>
+        <Loading />
+      </BookingShell>
+    );
+  if (query.error)
+    return (
+      <BookingShell>
+        <Alert>{messageOf(query.error)}</Alert>
+      </BookingShell>
+    );
+  const paymentMap = new Map(
+    query.data.payments.map((x) => [String(x.order), x]),
+  );
+  const orderMap = new Map(
+    query.data.orders.map((x) => [String(x.reservation), x]),
+  );
+  const simulate = async (payment) => {
+    setBusy(payment._id);
+    await api.post(`/payments/${payment._id}/sandbox/paid`);
+    await client.invalidateQueries({ queryKey: ["my-bookings"] });
+    setBusy("");
+  };
+  return (
+    <BookingShell>
+      <div className="page-head">
+        <div>
+          <h1>{t.booking.myBookings}</h1>
+          <p>{t.booking.bookingIntro}</p>
+        </div>
+        <Button asChild>
+          <Link to="/portal/sales">
+            <Banknote size={16} />
+            {language === "sw"
+              ? "Ongeza mauzo ya kila siku"
+              : "Add daily sales"}
+          </Link>
+        </Button>
+      </div>
+      <div className="booking-records">
+        {query.data.reservations.map((reservation) => {
+          const order = orderMap.get(String(reservation._id));
+          const payment = order && paymentMap.get(String(order._id));
+          return (
+            <Card key={reservation._id} className="booking-record">
+              <div>
+                <Badge tone={statusTone(reservation.status)}>
+                  {reservation.status.replaceAll("_", " ").toLowerCase()}
+                </Badge>
+                <h2>{reservation.event?.name}</h2>
+                <p>
+                  {reservation.booths.map((x) => `Booth ${x.code}`).join(", ")}{" "}
+                  · {reservation.event?.venue}
+                </p>
+              </div>
+              <BookingTimeline reservation={reservation} order={order} />
+              {order && (
+                <div className="payment-summary">
+                  <span>
+                    Order <strong>{order.number}</strong>
+                  </span>
+                  <span>
+                    Total{" "}
+                    <strong>
+                      {formatMoney(order.totalMinor, order.currency)}
+                    </strong>
+                  </span>
+                  {payment && (
+                    <span>
+                      gEPG control number{" "}
+                      <strong>{payment.controlNumber}</strong>
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="record-actions">
+                {payment?.status === "pending" && (
+                  <Button asChild>
+                    <Link
+                      to={`/portal/events/${reservation.event?._id || reservation.event}`}
+                    >
+                      {t.booking.continuePayment}
+                    </Link>
+                  </Button>
+                )}
+                {import.meta.env.DEV && payment?.status === "pending" && (
+                  <Button
+                    variant="outline"
+                    disabled={busy === payment._id}
+                    onClick={() => simulate(payment)}
+                  >
+                    Simulate development payment
+                  </Button>
+                )}
+                {order?.status === "paid" && (
+                  <>
+                    <Button asChild>
+                      <Link to="/portal/sales">
+                        <Banknote size={16} />
+                        Add daily sales
+                      </Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <a href={`/api/orders/${order._id}/invoice.pdf`}>
+                        <Download size={16} />
+                        {t.booking.invoice}
+                      </a>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <a href={`/api/orders/${order._id}/pass.pdf`}>
+                        <TicketCheck size={16} />
+                        {t.booking.setupPass}
+                      </a>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+        {!query.data.reservations.length && (
+          <Card className="empty">
+            {t.booking.noBookings}{" "}
+            <Link to="/portal/events">{t.booking.browseEvents}</Link>.
+          </Card>
+        )}
+      </div>
+    </BookingShell>
+  );
 }
 
 function BoothControlWorkspace({ event }) {
-  const client = useQueryClient(); const [active, setActive] = useState(null); const [message, setMessage] = useState('')
-  const query = useQuery({ queryKey: ['admin-layout', event._id], queryFn: async () => (await api.get(`/admin/events/${event._id}/layout`)).data.data })
-  const refresh = async () => { await client.invalidateQueries({ queryKey: ['admin-layout', event._id] }); await client.invalidateQueries({ queryKey: ['event-map', event._id] }) }
-  const generate = async e => { e.preventDefault(); const form = e.currentTarget; setMessage(''); try { const values = Object.fromEntries(new FormData(form)); await api.post(`/admin/events/${event._id}/booths/generate`, { ...values, rows: Number(values.rows), columns: Number(values.columns), gap: Number(values.gap), padding: Number(values.padding), widthM: Number(values.widthM), heightM: Number(values.heightM), priceMinor: Number(values.price) * 100 }); setActive(null); setMessage('Booth layout generated successfully'); await refresh() } catch (error) { setMessage(messageOf(error)) } }
-  const save = async e => { e.preventDefault(); const values = Object.fromEntries(new FormData(e.currentTarget)); try { const { data } = await api.patch(`/admin/booths/${active._id}`, { name: values.name, zone: values.zone, tier: values.tier, priceMinor: Number(values.price) * 100, status: values.status, amenities: values.amenities.split(',').map(x => x.trim()).filter(Boolean), restrictions: values.restrictions.split(',').map(x => x.trim()).filter(Boolean) }); setActive(data.data); setMessage(`Booth ${data.data.code} updated`); await refresh() } catch (error) { setMessage(messageOf(error)) } }
-  const remove = async () => { if (!await sidoConfirm({ title: 'Remove booth?', text: `Booth ${active.code} will be permanently removed from this event.`, confirmText: 'Remove booth', danger: true })) return; try { await api.delete(`/admin/booths/${active._id}`); setActive(null); setMessage('Booth removed'); await refresh(); await sidoSuccess('Booth removed', `Booth ${active.code} was removed successfully.`) } catch (error) { const message = messageOf(error); setMessage(message); await sidoError('Unable to remove booth', message) } }
-  if (query.isLoading) return <Loading/>; const data = query.data
-  return <div className="booth-control-workspace">{message && <Alert type={message.includes('success') || message.includes('updated') || message.includes('removed') ? 'success' : 'error'}>{message}</Alert>}<div className="tausi-stepbar"><span className="done">1</span><strong>Event selected</strong><i/><span className={data.booths.length ? 'done' : 'active'}>2</span><strong>Configure booths</strong><i/><span>3</span><strong>Publish & sell</strong></div><div className="booth-control-grid"><Card className="form-card booth-generator"><h2>Generate booth layout</h2><p className="muted">Create a selectable booth grid, then click individual booths on the map to adjust their price, zone, tier, or availability.</p><form onSubmit={generate}><div className="form-grid"><Field label="Rows"><Input name="rows" type="number" min="1" max="30" defaultValue="4" required/></Field><Field label="Booths per row"><Input name="columns" type="number" min="1" max="30" defaultValue="6" required/></Field><Field label="Code prefix"><Input name="prefix" placeholder="e.g. HALL-"/></Field><Field label="Zone"><Input name="zone" defaultValue="Main Hall" required/></Field><Field label="Tier"><select name="tier" defaultValue="Standard"><option>Standard</option><option>Premium</option><option>Corner</option><option>Entrance</option></select></Field><Field label="Price per booth (TZS)"><Input name="price" type="number" min="0" defaultValue="250000" required/></Field><Field label="Width (metres)"><Input name="widthM" type="number" min="1" step="0.5" defaultValue="3"/></Field><Field label="Depth (metres)"><Input name="heightM" type="number" min="1" step="0.5" defaultValue="3"/></Field><Field label="Aisle gap"><Input name="gap" type="number" min="4" defaultValue="20"/></Field><Field label="Outer margin"><Input name="padding" type="number" min="20" defaultValue="55"/></Field></div><Button><Grid2X2 size={16}/>{data.booths.length ? 'Replace unallocated layout' : 'Generate booths'}</Button></form><div className="booth-summary"><span><strong>{data.booths.length}</strong>Total</span><span><strong>{data.booths.filter(x => x.status === 'available').length}</strong>Available</span><span><strong>{data.booths.filter(x => x.status === 'booked').length}</strong>Booked</span></div></Card><div className="booth-map-admin"><FloorMap data={data} selected={active ? [active._id] : []} onSelect={setActive} adminMode/>{!data.booths.length && <div className="map-empty-overlay"><Grid2X2/><h3>No booths configured</h3><p>Use the layout generator to create the first booth map.</p></div>}</div></div>{active && <Card className="booth-editor"><div className="booth-editor-head"><div><Badge tone={statusTone(active.status)}>{active.status}</Badge><h2>Booth {active.code}</h2><p>{active.widthM}m × {active.heightM}m</p></div><Button variant="ghost" onClick={() => setActive(null)}><X/></Button></div><form onSubmit={save}><div className="form-grid"><Field label="Display name"><Input name="name" defaultValue={active.name}/></Field><Field label="Zone"><Input name="zone" defaultValue={active.zone} required/></Field><Field label="Pricing tier"><select name="tier" defaultValue={active.tier}><option>Standard</option><option>Premium</option><option>Corner</option><option>Entrance</option></select></Field><Field label="Price (TZS)"><Input name="price" type="number" defaultValue={active.priceMinor / 100} min="0" required/></Field><Field label="Availability"><select name="status" defaultValue={active.status} disabled={!['available','unavailable'].includes(active.status)}><option value="available">Available for booking</option><option value="unavailable">Blocked by organizer</option>{!['available','unavailable'].includes(active.status) && <option value={active.status}>{active.status}</option>}</select></Field><Field label="Amenities, comma-separated"><Input name="amenities" defaultValue={active.amenities?.join(', ')}/></Field></div><Field label="Restrictions, comma-separated"><Input name="restrictions" defaultValue={active.restrictions?.join(', ')}/></Field><div className="form-actions"><Button type="button" variant="outline" disabled={!['available','unavailable'].includes(active.status)} onClick={remove}>Remove booth</Button><Button>Save booth</Button></div></form></Card>}</div>
+  const client = useQueryClient();
+  const [active, setActive] = useState(null);
+  const [message, setMessage] = useState("");
+  const query = useQuery({
+    queryKey: ["admin-layout", event._id],
+    queryFn: async () =>
+      (await api.get(`/admin/events/${event._id}/layout`)).data.data,
+  });
+  const refresh = async () => {
+    await client.invalidateQueries({ queryKey: ["admin-layout", event._id] });
+    await client.invalidateQueries({ queryKey: ["event-map", event._id] });
+  };
+  const generate = async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    setMessage("");
+    try {
+      const values = Object.fromEntries(new FormData(form));
+      await api.post(`/admin/events/${event._id}/booths/generate`, {
+        ...values,
+        rows: Number(values.rows),
+        columns: Number(values.columns),
+        gap: Number(values.gap),
+        padding: Number(values.padding),
+        widthM: Number(values.widthM),
+        heightM: Number(values.heightM),
+        priceMinor: Number(values.price) * 100,
+      });
+      setActive(null);
+      setMessage("Booth layout generated successfully");
+      await refresh();
+    } catch (error) {
+      setMessage(messageOf(error));
+    }
+  };
+  const save = async (e) => {
+    e.preventDefault();
+    const values = Object.fromEntries(new FormData(e.currentTarget));
+    try {
+      const { data } = await api.patch(`/admin/booths/${active._id}`, {
+        name: values.name,
+        zone: values.zone,
+        tier: values.tier,
+        priceMinor: Number(values.price) * 100,
+        status: values.status,
+        amenities: values.amenities
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+        restrictions: values.restrictions
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+      });
+      setActive(data.data);
+      setMessage(`Booth ${data.data.code} updated`);
+      await refresh();
+    } catch (error) {
+      setMessage(messageOf(error));
+    }
+  };
+  const remove = async () => {
+    if (
+      !(await sidoConfirm({
+        title: "Remove booth?",
+        text: `Booth ${active.code} will be permanently removed from this event.`,
+        confirmText: "Remove booth",
+        danger: true,
+      }))
+    )
+      return;
+    try {
+      await api.delete(`/admin/booths/${active._id}`);
+      setActive(null);
+      setMessage("Booth removed");
+      await refresh();
+      await sidoSuccess(
+        "Booth removed",
+        `Booth ${active.code} was removed successfully.`,
+      );
+    } catch (error) {
+      const message = messageOf(error);
+      setMessage(message);
+      await sidoError("Unable to remove booth", message);
+    }
+  };
+  if (query.isLoading) return <Loading />;
+  const data = query.data;
+  return (
+    <div className="booth-control-workspace">
+      {message && (
+        <Alert
+          type={
+            message.includes("success") ||
+            message.includes("updated") ||
+            message.includes("removed")
+              ? "success"
+              : "error"
+          }
+        >
+          {message}
+        </Alert>
+      )}
+      <div className="tausi-stepbar">
+        <span className="done">1</span>
+        <strong>Event selected</strong>
+        <i />
+        <span className={data.booths.length ? "done" : "active"}>2</span>
+        <strong>Configure booths</strong>
+        <i />
+        <span>3</span>
+        <strong>Publish & sell</strong>
+      </div>
+      <div className="booth-control-grid">
+        <Card className="form-card booth-generator">
+          <h2>Generate booth layout</h2>
+          <p className="muted">
+            Create a selectable booth grid, then click individual booths on the
+            map to adjust their price, zone, tier, or availability.
+          </p>
+          <form onSubmit={generate}>
+            <div className="form-grid">
+              <Field label="Rows">
+                <Input
+                  name="rows"
+                  type="number"
+                  min="1"
+                  max="30"
+                  defaultValue="4"
+                  required
+                />
+              </Field>
+              <Field label="Booths per row">
+                <Input
+                  name="columns"
+                  type="number"
+                  min="1"
+                  max="30"
+                  defaultValue="6"
+                  required
+                />
+              </Field>
+              <Field label="Code prefix">
+                <Input name="prefix" placeholder="e.g. HALL-" />
+              </Field>
+              <Field label="Zone">
+                <Input name="zone" defaultValue="Main Hall" required />
+              </Field>
+              <Field label="Tier">
+                <select name="tier" defaultValue="Standard">
+                  <option>Standard</option>
+                  <option>Premium</option>
+                  <option>Corner</option>
+                  <option>Entrance</option>
+                </select>
+              </Field>
+              <Field label="Price per booth (TZS)">
+                <Input
+                  name="price"
+                  type="number"
+                  min="0"
+                  defaultValue="250000"
+                  required
+                />
+              </Field>
+              <Field label="Width (metres)">
+                <Input
+                  name="widthM"
+                  type="number"
+                  min="1"
+                  step="0.5"
+                  defaultValue="3"
+                />
+              </Field>
+              <Field label="Depth (metres)">
+                <Input
+                  name="heightM"
+                  type="number"
+                  min="1"
+                  step="0.5"
+                  defaultValue="3"
+                />
+              </Field>
+              <Field label="Aisle gap">
+                <Input name="gap" type="number" min="4" defaultValue="20" />
+              </Field>
+              <Field label="Outer margin">
+                <Input
+                  name="padding"
+                  type="number"
+                  min="20"
+                  defaultValue="55"
+                />
+              </Field>
+            </div>
+            <Button>
+              <Grid2X2 size={16} />
+              {data.booths.length
+                ? "Replace unallocated layout"
+                : "Generate booths"}
+            </Button>
+          </form>
+          <div className="booth-summary">
+            <span>
+              <strong>{data.booths.length}</strong>Total
+            </span>
+            <span>
+              <strong>
+                {data.booths.filter((x) => x.status === "available").length}
+              </strong>
+              Available
+            </span>
+            <span>
+              <strong>
+                {data.booths.filter((x) => x.status === "booked").length}
+              </strong>
+              Booked
+            </span>
+          </div>
+        </Card>
+        <div className="booth-map-admin">
+          <FloorMap
+            data={data}
+            selected={active ? [active._id] : []}
+            onSelect={setActive}
+            adminMode
+          />
+          {!data.booths.length && (
+            <div className="map-empty-overlay">
+              <Grid2X2 />
+              <h3>No booths configured</h3>
+              <p>Use the layout generator to create the first booth map.</p>
+            </div>
+          )}
+        </div>
+      </div>
+      {active && (
+        <Card className="booth-editor">
+          <div className="booth-editor-head">
+            <div>
+              <Badge tone={statusTone(active.status)}>{active.status}</Badge>
+              <h2>Booth {active.code}</h2>
+              <p>
+                {active.widthM}m × {active.heightM}m
+              </p>
+            </div>
+            <Button variant="ghost" onClick={() => setActive(null)}>
+              <X />
+            </Button>
+          </div>
+          <form onSubmit={save}>
+            <div className="form-grid">
+              <Field label="Display name">
+                <Input name="name" defaultValue={active.name} />
+              </Field>
+              <Field label="Zone">
+                <Input name="zone" defaultValue={active.zone} required />
+              </Field>
+              <Field label="Pricing tier">
+                <select name="tier" defaultValue={active.tier}>
+                  <option>Standard</option>
+                  <option>Premium</option>
+                  <option>Corner</option>
+                  <option>Entrance</option>
+                </select>
+              </Field>
+              <Field label="Price (TZS)">
+                <Input
+                  name="price"
+                  type="number"
+                  defaultValue={active.priceMinor / 100}
+                  min="0"
+                  required
+                />
+              </Field>
+              <Field label="Availability">
+                <select
+                  name="status"
+                  defaultValue={active.status}
+                  disabled={
+                    !["available", "unavailable"].includes(active.status)
+                  }
+                >
+                  <option value="available">Available for booking</option>
+                  <option value="unavailable">Blocked by organizer</option>
+                  {!["available", "unavailable"].includes(active.status) && (
+                    <option value={active.status}>{active.status}</option>
+                  )}
+                </select>
+              </Field>
+              <Field label="Amenities, comma-separated">
+                <Input
+                  name="amenities"
+                  defaultValue={active.amenities?.join(", ")}
+                />
+              </Field>
+            </div>
+            <Field label="Restrictions, comma-separated">
+              <Input
+                name="restrictions"
+                defaultValue={active.restrictions?.join(", ")}
+              />
+            </Field>
+            <div className="form-actions">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!["available", "unavailable"].includes(active.status)}
+                onClick={remove}
+              >
+                Remove booth
+              </Button>
+              <Button>Save booth</Button>
+            </div>
+          </form>
+        </Card>
+      )}
+    </div>
+  );
 }
 
 function CategoryPricingAdmin({ event }) {
-  const client = useQueryClient(); const [level, setLevel] = useState('event'); const [targetId, setTargetId] = useState(''); const [message, setMessage] = useState('')
-  const query = useQuery({ queryKey: ['category-pricing', event._id], queryFn: async () => (await api.get(`/admin/events/${event._id}/designer`)).data.data })
-  const targets = level === 'zone' ? query.data?.zones || [] : level === 'booth' ? query.data?.booths || [] : [query.data?.event || event]; const target = level === 'event' ? targets[0] : targets.find(item => String(item._id) === targetId)
-  const submit = async e => { e.preventDefault(); const form = new FormData(e.currentTarget), inherit = level !== 'event' && form.get('inherit') === 'on'; const rules = BUSINESS_CATEGORIES.map((category, index) => ({ category, eligible: form.get(`eligible-${index}`) === 'on', priceMinor: Math.round(Number(form.get(`price-${index}`) || 0) * 100) })); try { await api.put(`/admin/events/${event._id}/category-rules`, { level, targetId: target?._id, inherit, rules }); setMessage('Category pricing saved'); await client.invalidateQueries({ queryKey: ['category-pricing', event._id] }) } catch (error) { setMessage(messageOf(error)) } }
-  return <Card className="form-card category-pricing-admin"><h2>Business category pricing</h2><p className="muted">Set event defaults, then optionally override a zone or individual booth.</p><div className="form-grid"><Field label="Level"><select value={level} onChange={e => { setLevel(e.target.value); setTargetId('') }}><option value="event">Entire event</option><option value="zone">Zone override</option><option value="booth">Booth override</option></select></Field>{level !== 'event' && <Field label="Target"><select value={targetId} onChange={e => setTargetId(e.target.value)}><option value="">Select target</option>{targets.map(item => <option value={item._id} key={item._id}>{item.code} · {item.name || item.zone}</option>)}</select></Field>}</div>{target && <form onSubmit={submit} key={`${level}-${target._id}-${JSON.stringify(target.categoryRules)}`}>{level !== 'event' && <label><input name="inherit" type="checkbox" defaultChecked={!target.categoryRules?.length}/> Inherit parent rules</label>}<div className="category-rule-grid">{BUSINESS_CATEGORIES.map((category, index) => { const rule = target.categoryRules?.find(item => item.category === category); return <div className="category-rule-row" key={category}><label><input name={`eligible-${index}`} type="checkbox" defaultChecked={rule?.eligible !== false}/> {category}</label><Field label="Price (TZS)"><Input name={`price-${index}`} type="number" min="0" defaultValue={(rule?.priceMinor ?? (level === 'booth' ? target.priceMinor : 0)) / 100}/></Field></div> })}</div><Button>Save category rules</Button></form>}{message && <Alert type={message.includes('saved') ? 'success' : 'error'}>{message}</Alert>}</Card>
+  const client = useQueryClient();
+  const [level, setLevel] = useState("event");
+  const [targetId, setTargetId] = useState("");
+  const [message, setMessage] = useState("");
+  const query = useQuery({
+    queryKey: ["category-pricing", event._id],
+    queryFn: async () =>
+      (await api.get(`/admin/events/${event._id}/designer`)).data.data,
+  });
+  const targets =
+    level === "zone"
+      ? query.data?.zones || []
+      : level === "booth"
+        ? query.data?.booths || []
+        : [query.data?.event || event];
+  const target =
+    level === "event"
+      ? targets[0]
+      : targets.find((item) => String(item._id) === targetId);
+  const submit = async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget),
+      inherit = level !== "event" && form.get("inherit") === "on";
+    const rules = BUSINESS_CATEGORIES.map((category, index) => ({
+      category,
+      eligible: form.get(`eligible-${index}`) === "on",
+      priceMinor: Math.round(Number(form.get(`price-${index}`) || 0) * 100),
+    }));
+    try {
+      await api.put(`/admin/events/${event._id}/category-rules`, {
+        level,
+        targetId: target?._id,
+        inherit,
+        rules,
+      });
+      setMessage("Category pricing saved");
+      await client.invalidateQueries({
+        queryKey: ["category-pricing", event._id],
+      });
+    } catch (error) {
+      setMessage(messageOf(error));
+    }
+  };
+  return (
+    <Card className="form-card category-pricing-admin">
+      <h2>Business category pricing</h2>
+      <p className="muted">
+        Set event defaults, then optionally override a zone or individual booth.
+      </p>
+      <div className="form-grid">
+        <Field label="Level">
+          <select
+            value={level}
+            onChange={(e) => {
+              setLevel(e.target.value);
+              setTargetId("");
+            }}
+          >
+            <option value="event">Entire event</option>
+            <option value="zone">Zone override</option>
+            <option value="booth">Booth override</option>
+          </select>
+        </Field>
+        {level !== "event" && (
+          <Field label="Target">
+            <select
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+            >
+              <option value="">Select target</option>
+              {targets.map((item) => (
+                <option value={item._id} key={item._id}>
+                  {item.code} · {item.name || item.zone}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+      </div>
+      {target && (
+        <form
+          onSubmit={submit}
+          key={`${level}-${target._id}-${JSON.stringify(target.categoryRules)}`}
+        >
+          {level !== "event" && (
+            <label>
+              <input
+                name="inherit"
+                type="checkbox"
+                defaultChecked={!target.categoryRules?.length}
+              />{" "}
+              Inherit parent rules
+            </label>
+          )}
+          <div className="category-rule-grid">
+            {BUSINESS_CATEGORIES.map((category, index) => {
+              const rule = target.categoryRules?.find(
+                (item) => item.category === category,
+              );
+              return (
+                <div className="category-rule-row" key={category}>
+                  <label>
+                    <input
+                      name={`eligible-${index}`}
+                      type="checkbox"
+                      defaultChecked={rule?.eligible !== false}
+                    />{" "}
+                    {category}
+                  </label>
+                  <Field label="Price (TZS)">
+                    <Input
+                      name={`price-${index}`}
+                      type="number"
+                      min="0"
+                      defaultValue={
+                        (rule?.priceMinor ??
+                          (level === "booth" ? target.priceMinor : 0)) / 100
+                      }
+                    />
+                  </Field>
+                </div>
+              );
+            })}
+          </div>
+          <Button>Save category rules</Button>
+        </form>
+      )}
+      {message && (
+        <Alert type={message.includes("saved") ? "success" : "error"}>
+          {message}
+        </Alert>
+      )}
+    </Card>
+  );
 }
 
 export function AdminBoothControl() {
-  const { id } = useParams(); const events = useQuery({ queryKey: ['admin-events'], queryFn: async () => (await api.get('/admin/events')).data.data }); const selected = events.data?.find(x => x._id === id)
-  return <BookingShell admin><Link to="/admin/events" className="back-link"><ArrowLeft size={16}/>Managed events</Link><div className="page-head booking-title"><div><h1>{selected ? `${selected.name}: venue designer` : 'Venue designer'}</h1><p>Draw zones, create custom booth shapes, arrange venue features, and edit exact dimensions in metres.</p></div></div>{events.isLoading ? <Loading/> : selected ? <><CategoryPricingAdmin event={selected}/><VisualDesigner event={selected}/></> : <Card className="empty"><CalendarDays/><h2>Event not found</h2><p>Return to Managed events and choose an event to configure.</p><Button asChild><Link to="/admin/events">View managed events</Link></Button></Card>}</BookingShell>
+  const { id } = useParams();
+  const events = useQuery({
+    queryKey: ["admin-events"],
+    queryFn: async () => (await api.get("/admin/events")).data.data,
+  });
+  const selected = events.data?.find((x) => x._id === id);
+  return (
+    <BookingShell admin>
+      <Link to="/admin/events" className="back-link">
+        <ArrowLeft size={16} />
+        Managed events
+      </Link>
+      <div className="page-head booking-title">
+        <div>
+          <h1>
+            {selected ? `${selected.name}: venue designer` : "Venue designer"}
+          </h1>
+          <p>
+            Draw zones, create custom booth shapes, arrange venue features, and
+            edit exact dimensions in metres.
+          </p>
+        </div>
+      </div>
+      {events.isLoading ? (
+        <Loading />
+      ) : selected ? (
+        <>
+          <CategoryPricingAdmin event={selected} />
+          <VisualDesigner event={selected} />
+        </>
+      ) : (
+        <Card className="empty">
+          <CalendarDays />
+          <h2>Event not found</h2>
+          <p>Return to Managed events and choose an event to configure.</p>
+          <Button asChild>
+            <Link to="/admin/events">View managed events</Link>
+          </Button>
+        </Card>
+      )}
+    </BookingShell>
+  );
 }
 
 export function AdminCreateEvent() {
-  const navigate = useNavigate(); const client = useQueryClient(); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [venue, setVenue] = useState(''); const [address, setAddress] = useState(''); const [location, setLocation] = useState(null)
-  const create = async e => { e.preventDefault(); setBusy(true); setError(''); try { const values = Object.fromEntries(new FormData(e.currentTarget)); const { data } = await api.post('/admin/events', { ...values, description: { en: values.description }, terms: { en: values.terms } }); await client.invalidateQueries({ queryKey: ['admin-events'] }); navigate(`/admin/events/${data.data._id}/booths`) } catch (x) { setError(messageOf(x)); setBusy(false) } }
-  const locationChanged = next => { setLocation(next); if (!venue) setVenue(next.locationLabel?.split(',')[0] || ''); if (!address) setAddress(next.locationLabel || '') }
-  return <BookingShell admin><Link to="/admin/events" className="back-link"><ArrowLeft size={16}/>Managed events</Link><div className="page-head booking-title"><div><h1>Create event</h1><p>Add the event details and choose its location in Tanzania.</p></div></div>{error && <Alert>{error}</Alert>}<Card className="form-card event-create-card"><form onSubmit={create}><input type="hidden" name="latitude" value={location?.latitude || ''}/><input type="hidden" name="longitude" value={location?.longitude || ''}/><input type="hidden" name="locationLabel" value={location?.locationLabel || ''}/><div className="form-grid"><Field label="Event name"><Input name="name" required/></Field><Field label="Venue"><Input name="venue" value={venue} onChange={e => setVenue(e.target.value)} required/></Field><Field label="Address"><Input name="address" value={address} onChange={e => setAddress(e.target.value)}/></Field><Field label="Status"><select name="status"><option value="draft">Draft</option><option value="published">Published</option></select></Field><Field label="Booking opens"><Input name="bookingOpensAt" type="datetime-local" required/></Field><Field label="Booking closes"><Input name="bookingClosesAt" type="datetime-local" required/></Field><Field label="Event starts"><Input name="startsAt" type="datetime-local" required/></Field><Field label="Event ends"><Input name="endsAt" type="datetime-local" required/></Field><Field label="Map width"><Input name="mapWidth" type="number" defaultValue="1200"/></Field><Field label="Map height"><Input name="mapHeight" type="number" defaultValue="760"/></Field></div><Field label="Event location"><LocationPicker value={location} onChange={locationChanged}/></Field><Field label="Description"><Textarea name="description"/></Field><Field label="Booking terms"><Textarea name="terms"/></Field><div className="form-actions"><Button type="button" variant="outline" onClick={() => navigate('/admin/events')}>Cancel</Button><Button disabled={busy || !location}>{busy ? 'Creating…' : 'Create event and manage booths'}</Button></div></form></Card></BookingShell>
+  const navigate = useNavigate();
+  const client = useQueryClient();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [venue, setVenue] = useState("");
+  const [address, setAddress] = useState("");
+  const [location, setLocation] = useState(null);
+  const create = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const values = Object.fromEntries(new FormData(e.currentTarget));
+      const { data } = await api.post("/admin/events", {
+        ...values,
+        description: { en: values.description },
+        terms: { en: values.terms },
+      });
+      await client.invalidateQueries({ queryKey: ["admin-events"] });
+      navigate(`/admin/events/${data.data._id}/booths`);
+    } catch (x) {
+      setError(messageOf(x));
+      setBusy(false);
+    }
+  };
+  const locationChanged = (next) => {
+    setLocation(next);
+    if (!venue) setVenue(next.locationLabel?.split(",")[0] || "");
+    if (!address) setAddress(next.locationLabel || "");
+  };
+  return (
+    <BookingShell admin>
+      <Link to="/admin/events" className="back-link">
+        <ArrowLeft size={16} />
+        Managed events
+      </Link>
+      <div className="page-head booking-title">
+        <div>
+          <h1>Create event</h1>
+          <p>Add the event details and choose its location in Tanzania.</p>
+        </div>
+      </div>
+      {error && <Alert>{error}</Alert>}
+      <Card className="form-card event-create-card">
+        <form onSubmit={create}>
+          <input
+            type="hidden"
+            name="latitude"
+            value={location?.latitude || ""}
+          />
+          <input
+            type="hidden"
+            name="longitude"
+            value={location?.longitude || ""}
+          />
+          <input
+            type="hidden"
+            name="locationLabel"
+            value={location?.locationLabel || ""}
+          />
+          <div className="form-grid">
+            <Field label="Event name">
+              <Input name="name" required />
+            </Field>
+            <Field label="Venue">
+              <Input
+                name="venue"
+                value={venue}
+                onChange={(e) => setVenue(e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Address">
+              <Input
+                name="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </Field>
+            <Field label="Status">
+              <select name="status">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </Field>
+            <Field label="Booking opens">
+              <Input name="bookingOpensAt" type="datetime-local" required />
+            </Field>
+            <Field label="Booking closes">
+              <Input name="bookingClosesAt" type="datetime-local" required />
+            </Field>
+            <Field label="Event starts">
+              <Input name="startsAt" type="datetime-local" required />
+            </Field>
+            <Field label="Event ends">
+              <Input name="endsAt" type="datetime-local" required />
+            </Field>
+            <Field label="Map width">
+              <Input name="mapWidth" type="number" defaultValue="1200" />
+            </Field>
+            <Field label="Map height">
+              <Input name="mapHeight" type="number" defaultValue="760" />
+            </Field>
+          </div>
+          <Field label="Event location">
+            <LocationPicker value={location} onChange={locationChanged} />
+          </Field>
+          <Field label="Description">
+            <Textarea name="description" />
+          </Field>
+          <Field label="Booking terms">
+            <Textarea name="terms" />
+          </Field>
+          <div className="form-actions">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/admin/events")}
+            >
+              Cancel
+            </Button>
+            <Button disabled={busy || !location}>
+              {busy ? "Creating…" : "Create event and manage booths"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </BookingShell>
+  );
 }
 
 export function AdminEvents() {
-  const client = useQueryClient(); const navigate = useNavigate(); const [error, setError] = useState(''); const query = useQuery({ queryKey: ['admin-events'], queryFn: async () => (await api.get('/admin/events')).data.data })
-  const update = async (event, changes) => { await api.patch(`/admin/events/${event._id}`, changes); client.invalidateQueries({ queryKey: ['admin-events'] }) }
-  const toggleEvent = async event => { try { await update(event, { salesPaused: !event.salesPaused }) } catch (x) { setError(messageOf(x)) } }
-  const deleteEvent = async event => { if (!await sidoConfirm({ title: 'Delete event?', text: `${event.name} and its unallocated setup data will be permanently deleted. This cannot be undone.`, confirmText: 'Delete event', danger: true })) return; setError(''); try { await api.delete(`/admin/events/${event._id}`); await client.invalidateQueries({ queryKey: ['admin-events'] }); await sidoSuccess('Event deleted', `${event.name} was deleted successfully.`) } catch (x) { const message = messageOf(x); setError(message); await sidoError('Unable to delete event', message) } }
-  return <BookingShell admin>{error && <Alert>{error}</Alert>}<EventMapDirectory events={query.data} loading={query.isLoading} error={query.error} mode="admin" onManage={event => navigate(`/admin/events/${event._id}/manage`)} onToggle={toggleEvent} onDelete={deleteEvent}/></BookingShell>
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const query = useQuery({
+    queryKey: ["admin-events"],
+    queryFn: async () => (await api.get("/admin/events")).data.data,
+  });
+  const update = async (event, changes) => {
+    await api.patch(`/admin/events/${event._id}`, changes);
+    client.invalidateQueries({ queryKey: ["admin-events"] });
+  };
+  const toggleEvent = async (event) => {
+    try {
+      await update(event, { salesPaused: !event.salesPaused });
+    } catch (x) {
+      setError(messageOf(x));
+    }
+  };
+  const deleteEvent = async (event) => {
+    if (
+      !(await sidoConfirm({
+        title: "Delete event?",
+        text: `${event.name} and its unallocated setup data will be permanently deleted. This cannot be undone.`,
+        confirmText: "Delete event",
+        danger: true,
+      }))
+    )
+      return;
+    setError("");
+    try {
+      await api.delete(`/admin/events/${event._id}`);
+      await client.invalidateQueries({ queryKey: ["admin-events"] });
+      await sidoSuccess(
+        "Event deleted",
+        `${event.name} was deleted successfully.`,
+      );
+    } catch (x) {
+      const message = messageOf(x);
+      setError(message);
+      await sidoError("Unable to delete event", message);
+    }
+  };
+  return (
+    <BookingShell admin>
+      {error && <Alert>{error}</Alert>}
+      <EventMapDirectory
+        events={query.data}
+        loading={query.isLoading}
+        error={query.error}
+        mode="admin"
+        onManage={(event) => navigate(`/admin/events/${event._id}/manage`)}
+        onToggle={toggleEvent}
+        onDelete={deleteEvent}
+      />
+    </BookingShell>
+  );
 }
 
-const dateTime = value => value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+const dateTime = (value) =>
+  value
+    ? new Date(value).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "—";
 function BoothOccupantDetails({ booth, application, transaction, onClose }) {
-  const entrepreneur = application?.entrepreneur
-  return <Card className="booth-occupant-card"><div className="booth-occupant-heading"><div><Badge tone={statusTone(booth.status)}>{booth.status}</Badge><h2>Booth {booth.code}</h2><p>{booth.zone} · {booth.tier} · {formatMoney(booth.priceMinor)}</p></div><Button size="icon" variant="ghost" onClick={onClose} aria-label="Close booth details"><X/></Button></div>{application ? <div className="booth-occupant-sections"><section><h3><Store/>Business information</h3><dl><div><dt>Business name</dt><dd>{entrepreneur.businessName || 'Not provided'}</dd></div><div><dt>Business type</dt><dd>{entrepreneur.businessType || 'Not provided'}</dd></div><div><dt>Address</dt><dd>{entrepreneur.address || 'Not provided'}</dd></div><div><dt>Region / district</dt><dd>{[entrepreneur.region, entrepreneur.district].filter(Boolean).join(' / ') || 'Not provided'}</dd></div><div><dt>TIN</dt><dd>{entrepreneur.tin || 'Not provided'}</dd></div><div><dt>Website</dt><dd>{entrepreneur.website ? <a href={entrepreneur.website} target="_blank" rel="noreferrer">{entrepreneur.website}</a> : 'Not provided'}</dd></div></dl></section><section><h3><User/>Person who booked</h3><dl><div><dt>Full name</dt><dd>{entrepreneur.name}</dd></div><div><dt>Email</dt><dd>{entrepreneur.email || 'Not provided'}</dd></div><div><dt>Phone</dt><dd>{entrepreneur.phoneNumber || 'Not provided'}</dd></div><div><dt>Account status</dt><dd>{entrepreneur.accountStatus || '—'}</dd></div><div><dt>Application status</dt><dd><Badge tone={statusTone(application.status)}>{application.status.replaceAll('_', ' ')}</Badge></dd></div><div><dt>Applied</dt><dd>{dateTime(application.appliedAt)}</dd></div></dl></section><section><h3><ReceiptText/>Transaction & payment</h3><dl><div><dt>Order number</dt><dd>{application.order?.number || transaction?.orderNumber || 'No order'}</dd></div><div><dt>Payment reference</dt><dd>{application.payment?.providerReference || transaction?.providerReference || 'Not provided'}</dd></div><div><dt>Control number</dt><dd>{application.payment?.controlNumber || transaction?.controlNumber || 'Not provided'}</dd></div><div><dt>Provider</dt><dd>{application.payment?.provider || transaction?.provider || '—'}</dd></div><div><dt>Payment status</dt><dd><Badge tone={statusTone(application.payment?.status || transaction?.paymentStatus)}>{application.payment?.status || transaction?.paymentStatus || 'not started'}</Badge></dd></div><div><dt>Amount paid</dt><dd className="transaction-amount">{formatMoney(application.payment?.amountMinor ?? transaction?.amountMinor ?? application.order?.totalMinor, application.payment?.currency || transaction?.currency || application.order?.currency)}</dd></div><div><dt>Paid at</dt><dd>{dateTime(application.payment?.paidAt || transaction?.paidAt || application.order?.paidAt)}</dd></div></dl></section></div> : <div className="booth-occupant-empty"><Grid2X2/><div><strong>No booking information</strong><p>This booth is {booth.status} and is not linked to an entrepreneur application.</p></div></div>}</Card>
+  const entrepreneur = application?.entrepreneur;
+  return (
+    <Card className="booth-occupant-card">
+      <div className="booth-occupant-heading">
+        <div>
+          <Badge tone={statusTone(booth.status)}>{booth.status}</Badge>
+          <h2>Booth {booth.code}</h2>
+          <p>
+            {booth.zone} · {booth.tier} · {formatMoney(booth.priceMinor)}
+          </p>
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onClose}
+          aria-label="Close booth details"
+        >
+          <X />
+        </Button>
+      </div>
+      {application ? (
+        <div className="booth-occupant-sections">
+          <section>
+            <h3>
+              <Store />
+              Business information
+            </h3>
+            <dl>
+              <div>
+                <dt>Business name</dt>
+                <dd>{entrepreneur.businessName || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt>Business type</dt>
+                <dd>{entrepreneur.businessType || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt>Address</dt>
+                <dd>{entrepreneur.address || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt>Region / district</dt>
+                <dd>
+                  {[entrepreneur.region, entrepreneur.district]
+                    .filter(Boolean)
+                    .join(" / ") || "Not provided"}
+                </dd>
+              </div>
+              <div>
+                <dt>TIN</dt>
+                <dd>{entrepreneur.tin || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt>Website</dt>
+                <dd>
+                  {entrepreneur.website ? (
+                    <a
+                      href={entrepreneur.website}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {entrepreneur.website}
+                    </a>
+                  ) : (
+                    "Not provided"
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <section>
+            <h3>
+              <User />
+              Person who booked
+            </h3>
+            <dl>
+              <div>
+                <dt>Full name</dt>
+                <dd>{entrepreneur.name}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd>{entrepreneur.email || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt>Phone</dt>
+                <dd>{entrepreneur.phoneNumber || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt>Account status</dt>
+                <dd>{entrepreneur.accountStatus || "—"}</dd>
+              </div>
+              <div>
+                <dt>Application status</dt>
+                <dd>
+                  <Badge tone={statusTone(application.status)}>
+                    {application.status.replaceAll("_", " ")}
+                  </Badge>
+                </dd>
+              </div>
+              <div>
+                <dt>Applied</dt>
+                <dd>{dateTime(application.appliedAt)}</dd>
+              </div>
+            </dl>
+          </section>
+          <section>
+            <h3>
+              <ReceiptText />
+              Transaction & payment
+            </h3>
+            <dl>
+              <div>
+                <dt>Order number</dt>
+                <dd>
+                  {application.order?.number ||
+                    transaction?.orderNumber ||
+                    "No order"}
+                </dd>
+              </div>
+              <div>
+                <dt>Payment reference</dt>
+                <dd>
+                  {application.payment?.providerReference ||
+                    transaction?.providerReference ||
+                    "Not provided"}
+                </dd>
+              </div>
+              <div>
+                <dt>Control number</dt>
+                <dd>
+                  {application.payment?.controlNumber ||
+                    transaction?.controlNumber ||
+                    "Not provided"}
+                </dd>
+              </div>
+              <div>
+                <dt>Provider</dt>
+                <dd>
+                  {application.payment?.provider ||
+                    transaction?.provider ||
+                    "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>Payment status</dt>
+                <dd>
+                  <Badge
+                    tone={statusTone(
+                      application.payment?.status || transaction?.paymentStatus,
+                    )}
+                  >
+                    {application.payment?.status ||
+                      transaction?.paymentStatus ||
+                      "not started"}
+                  </Badge>
+                </dd>
+              </div>
+              <div>
+                <dt>Amount paid</dt>
+                <dd className="transaction-amount">
+                  {formatMoney(
+                    application.payment?.amountMinor ??
+                      transaction?.amountMinor ??
+                      application.order?.totalMinor,
+                    application.payment?.currency ||
+                      transaction?.currency ||
+                      application.order?.currency,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Paid at</dt>
+                <dd>
+                  {dateTime(
+                    application.payment?.paidAt ||
+                      transaction?.paidAt ||
+                      application.order?.paidAt,
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      ) : (
+        <div className="booth-occupant-empty">
+          <Grid2X2 />
+          <div>
+            <strong>No booking information</strong>
+            <p>
+              This booth is {booth.status} and is not linked to an entrepreneur
+              application.
+            </p>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
 }
 export function AdminEventManagement() {
-  const { id } = useParams(); const client = useQueryClient(); const [error, setError] = useState(''); const [location, setLocation] = useState(null); const [tab, setTab] = useState('overview')
-  const query = useQuery({ queryKey: ['admin-event-management', id], queryFn: async () => (await api.get(`/admin/events/${id}/management`)).data.data })
-  useEffect(() => { const event = query.data?.event; if (event && hasEventLocation(event)) setLocation({ latitude: event.latitude, longitude: event.longitude, locationLabel: event.locationLabel || event.address || event.venue }) }, [query.data?.event])
-  const refresh = async () => { await client.invalidateQueries({ queryKey: ['admin-event-management', id] }); await client.invalidateQueries({ queryKey: ['admin-events'] }) }
-  const update = async changes => { setError(''); try { await api.patch(`/admin/events/${id}`, changes); await refresh() } catch (requestError) { setError(messageOf(requestError)) } }
-  if (query.isLoading) return <BookingShell admin><Loading/></BookingShell>
-  if (query.error) return <BookingShell admin><Alert>{messageOf(query.error)}</Alert></BookingShell>
-  const data = query.data; const event = data.event; const occupied = data.booths.filter(booth => ['held', 'reserved', 'booked'].includes(booth.status)).length; const paid = data.transactions.filter(item => item.paymentStatus === 'paid'); const revenue = paid.reduce((sum, item) => sum + (item.amountMinor || 0), 0); const mapData = { event, booths: data.booths, applications: data.applications, transactions: data.transactions, backgroundSvg: data.floorPlan?.backgroundSvg || event.mapBackgroundSvg || '' }
-  const overviewStats = [[Users, 'Applications', data.applications.length, 'orange'], [Grid2X2, 'Occupied booths', `${occupied} / ${data.booths.length}`, 'blue'], [Banknote, 'Booking revenue', formatMoney(revenue, event.currency), 'purple'], [TrendingUp, 'Entrepreneur-reported sales', formatMoney(data.reportedSales?.totalSalesMinor, 'TZS'), 'green']]
-  return <BookingShell admin><div className="event-manage-page"><Link to="/admin/events" className="back-link"><ArrowLeft size={16}/>All events</Link>{error && <Alert>{error}</Alert>}<div className="page-head"><div><div className="event-manage-badges"><Badge tone={event.status === 'published' || event.status === 'active' ? 'green' : 'orange'}>{event.status}</Badge>{event.salesPaused && <Badge tone="red">Sales disabled</Badge>}</div><h1>{event.name}</h1><p>{event.locationLabel || event.address || event.venue}</p></div><div className="record-actions"><Button variant="outline" onClick={() => update({ salesPaused: !event.salesPaused })}>{event.salesPaused ? 'Enable sales' : 'Disable sales'}</Button><Button asChild><Link to={`/admin/events/${id}/booths`}><Grid2X2 size={16}/>Edit venue & booths</Link></Button></div></div><nav className="event-manage-tabs" aria-label="Event management sections">{[["overview","Overview"],["booths","Booth occupancy"],["applications","Entrepreneur applications"],["transactions","Transactions"]].map(([key, label]) => <button key={key} type="button" className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}{key === "booths" && <span>{occupied}/{data.booths.length}</span>}{key === "applications" && <span>{data.applications.length}</span>}{key === "transactions" && <span>{data.transactions.length}</span>}</button>)}</nav>{tab === "overview" && <><div className="event-manage-stats">{overviewStats.map(([Icon, label, value, tone]) => <Card className="event-stat-card" key={label}><span className={["event-stat-icon", tone].join(" ")}><Icon/></span><div><small>{label}</small><strong>{value}</strong></div></Card>)}</div><div className="event-manage-details"><Card className="event-details-card"><div className="event-card-heading"><span><CalendarDays/></span><div><h2>Event schedule & details</h2><p>Dates, venue and organizer information</p></div></div><dl><div><dt>Event starts</dt><dd>{dateTime(event.startsAt)}</dd></div><div><dt>Event ends</dt><dd>{dateTime(event.endsAt)}</dd></div><div><dt>Booking opens</dt><dd>{dateTime(event.bookingOpensAt)}</dd></div><div><dt>Booking closes</dt><dd>{dateTime(event.bookingClosesAt)}</dd></div><div><dt>Venue</dt><dd>{event.venue || '—'}</dd></div><div><dt>Address</dt><dd>{event.address || event.locationLabel || '—'}</dd></div><div><dt>Contact email</dt><dd>{event.contactEmail || '—'}</dd></div><div><dt>Contact phone</dt><dd>{event.contactPhone || '—'}</dd></div></dl>{event.description?.en && <><h3>Description</h3><p>{event.description.en}</p></>} {event.terms?.en && <><h3>Booking terms</h3><p>{event.terms.en}</p></>}</Card><Card className="form-card event-location-card"><div className="event-card-heading"><span><MapIcon/></span><div><h2>Publication & location</h2><p>Control visibility and update the map position</p></div></div><Field label="Event state"><select value={event.status} onChange={change => update({ status: change.target.value })}><option value="draft">Draft</option><option value="published">Published</option><option value="booking_closed">Booking closed</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></Field><LocationPicker value={location} onChange={setLocation}/><Button disabled={!location} onClick={() => update(location)}>Save location</Button></Card></div></>}{tab === "booths" && <section className="event-manage-section"><div className="panel-heading"><div><h2>Booth occupancy</h2><p>Occupied booths are gray for administrators and applicants.</p></div></div>{data.booths.length ? <FloorMap data={mapData} publicMode adminMode/> : <Card className="empty">No booths have been added to this event.</Card>}</section>}{tab === "applications" && <Card className="event-manage-table"><div className="panel-heading"><div><h2>Entrepreneur applications</h2><p>{data.applications.length} application{data.applications.length === 1 ? '' : 's'}</p></div></div><div className="table-wrap"><table><thead><tr><th>Entrepreneur</th><th>Business</th><th>Booths</th><th>Application</th><th>Payment</th><th>Time & details</th></tr></thead><tbody>{data.applications.map(item => <tr key={item.id}><td><strong>{item.entrepreneur.name}</strong><span>{item.entrepreneur.email}</span><span>{item.entrepreneur.phoneNumber}</span></td><td><strong>{item.entrepreneur.businessName || 'Not provided'}</strong><span>{[item.entrepreneur.businessType, item.entrepreneur.region].filter(Boolean).join(' · ')}</span></td><td><strong>{item.booths.map(booth => booth.code).join(', ') || 'None'}</strong><span>{item.booths.map(booth => `${booth.zone} · ${booth.status}`).join('; ')}</span></td><td><Badge tone={statusTone(item.status)}>{item.status.replaceAll('_', ' ')}</Badge><span>Applied {dateTime(item.appliedAt)}</span></td><td>{item.payment ? <><Badge tone={statusTone(item.payment.status)}>{item.payment.status}</Badge><span>{item.payment.controlNumber}</span><strong>{formatMoney(item.payment.amountMinor, item.payment.currency)}</strong></> : <span>No payment initiated</span>}</td><td><strong>{item.order?.number || 'No order'}</strong><span>Updated {dateTime(item.updatedAt)}</span>{item.expiresAt && <span>Hold expires {dateTime(item.expiresAt)}</span>}</td></tr>)}{!data.applications.length && <tr><td colSpan="6" className="empty-table">No entrepreneurs have applied yet.</td></tr>}</tbody></table></div></Card>}{tab === "transactions" && <Card className="event-manage-table"><div className="panel-heading"><div><h2>Transactions</h2><p>Orders and gEPG payment information for this event</p></div></div><div className="table-wrap"><table><thead><tr><th>Transaction</th><th>Entrepreneur</th><th>Booths</th><th>Status</th><th>Created / paid</th><th>Amount</th></tr></thead><tbody>{data.transactions.map(item => <tr key={item.id}><td><strong>{item.providerReference || item.orderNumber}</strong><span>{item.controlNumber || 'No control number'}</span><span>{item.provider}</span></td><td><strong>{item.entrepreneur?.businessName || item.entrepreneur?.name || '—'}</strong><span>{item.entrepreneur?.email}</span></td><td>{item.booths.map(booth => booth.code).join(', ') || '—'}</td><td><Badge tone={statusTone(item.paymentStatus)}>{item.paymentStatus.replaceAll('_', ' ')}</Badge><span>Order: {item.orderStatus}</span></td><td><strong>{dateTime(item.createdAt)}</strong><span>Paid {dateTime(item.paidAt)}</span></td><td className="transaction-amount">{formatMoney(item.amountMinor, item.currency)}</td></tr>)}{!data.transactions.length && <tr><td colSpan="6" className="empty-table">No transactions for this event yet.</td></tr>}</tbody></table></div></Card>}</div></BookingShell>
+  const { id } = useParams();
+  const [sectionParams, setSectionParams] = useSearchParams();
+  const client = useQueryClient();
+  const [error, setError] = useState("");
+  const [location, setLocation] = useState(null);
+  const tab = sectionParams.get("section") || "overview";
+  const setTab = (value) => {
+    const next = new URLSearchParams(sectionParams);
+    value === "overview" ? next.delete("section") : next.set("section", value);
+    setSectionParams(next, { replace: true });
+  };
+  const query = useQuery({
+    queryKey: ["admin-event-management", id],
+    queryFn: async () =>
+      (await api.get(`/admin/events/${id}/management`)).data.data,
+  });
+  useEffect(() => {
+    const event = query.data?.event;
+    if (event && hasEventLocation(event))
+      setLocation({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        locationLabel: event.locationLabel || event.address || event.venue,
+      });
+  }, [query.data?.event]);
+  const refresh = async () => {
+    await client.invalidateQueries({
+      queryKey: ["admin-event-management", id],
+    });
+    await client.invalidateQueries({ queryKey: ["admin-events"] });
+  };
+  const update = async (changes) => {
+    const nextStatus = changes.status;
+    if (nextStatus && nextStatus !== query.data?.event?.status) {
+      const warnings = {
+        published:
+          "Publishing makes this event visible and may open booth booking immediately.",
+        booking_closed:
+          "Entrepreneurs will no longer be able to create new booth reservations.",
+        completed:
+          "The event will be marked complete and sales reporting deadlines will begin.",
+        cancelled:
+          "The event will be cancelled. Existing paid bookings require a separate refund process.",
+      };
+      if (
+        warnings[nextStatus] &&
+        !(await sidoConfirm({
+          title: `Change event to ${nextStatus.replaceAll("_", " ")}?`,
+          text: warnings[nextStatus],
+          confirmText: "Change event status",
+          danger: nextStatus === "cancelled",
+        }))
+      )
+        return;
+    }
+    setError("");
+    try {
+      await api.patch(`/admin/events/${id}`, changes);
+      await refresh();
+    } catch (requestError) {
+      setError(messageOf(requestError));
+    }
+  };
+  if (query.isLoading)
+    return (
+      <BookingShell admin>
+        <Loading />
+      </BookingShell>
+    );
+  if (query.error)
+    return (
+      <BookingShell admin>
+        <Alert>{messageOf(query.error)}</Alert>
+      </BookingShell>
+    );
+  const data = query.data;
+  const event = data.event;
+  const occupied = data.booths.filter((booth) =>
+    ["held", "reserved", "booked"].includes(booth.status),
+  ).length;
+  const paid = data.transactions.filter(
+    (item) => item.paymentStatus === "paid",
+  );
+  const revenue = paid.reduce((sum, item) => sum + (item.amountMinor || 0), 0);
+  const mapData = {
+    event,
+    booths: data.booths,
+    applications: data.applications,
+    transactions: data.transactions,
+    backgroundSvg:
+      data.floorPlan?.backgroundSvg || event.mapBackgroundSvg || "",
+  };
+  const overviewStats = [
+    [Users, "Applications", data.applications.length, "orange"],
+    [Grid2X2, "Occupied booths", `${occupied} / ${data.booths.length}`, "blue"],
+    [
+      Banknote,
+      "Booking revenue",
+      formatMoney(revenue, event.currency),
+      "purple",
+    ],
+    [
+      TrendingUp,
+      "Entrepreneur-reported sales",
+      formatMoney(data.reportedSales?.totalSalesMinor, "TZS"),
+      "green",
+    ],
+  ];
+  return (
+    <BookingShell admin>
+      <div className="event-manage-page">
+        <Link to="/admin/events" className="back-link">
+          <ArrowLeft size={16} />
+          All events
+        </Link>
+        {error && <Alert>{error}</Alert>}
+        <div className="page-head">
+          <div>
+            <div className="event-manage-badges">
+              <Badge
+                tone={
+                  event.status === "published" || event.status === "active"
+                    ? "green"
+                    : "orange"
+                }
+              >
+                {event.status}
+              </Badge>
+              {event.salesPaused && <Badge tone="red">Sales disabled</Badge>}
+            </div>
+            <h1>{event.name}</h1>
+            <p>{event.locationLabel || event.address || event.venue}</p>
+          </div>
+          <div className="record-actions">
+            <Button
+              variant="outline"
+              onClick={() => update({ salesPaused: !event.salesPaused })}
+            >
+              {event.salesPaused ? "Enable sales" : "Disable sales"}
+            </Button>
+            <Button asChild>
+              <Link to={`/admin/events/${id}/booths`}>
+                <Grid2X2 size={16} />
+                Edit venue & booths
+              </Link>
+            </Button>
+          </div>
+        </div>
+        <nav
+          className="event-manage-tabs"
+          aria-label="Event management sections"
+        >
+          {[
+            ["overview", "Overview"],
+            ["booths", "Booth occupancy"],
+            ["applications", "Entrepreneur applications"],
+            ["transactions", "Transactions"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={tab === key ? "active" : ""}
+              onClick={() => setTab(key)}
+            >
+              {label}
+              {key === "booths" && (
+                <span>
+                  {occupied}/{data.booths.length}
+                </span>
+              )}
+              {key === "applications" && (
+                <span>{data.applications.length}</span>
+              )}
+              {key === "transactions" && (
+                <span>{data.transactions.length}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+        {tab === "overview" && (
+          <>
+            <div className="event-manage-stats">
+              {overviewStats.map(([Icon, label, value, tone]) => (
+                <Card className="event-stat-card" key={label}>
+                  <span className={["event-stat-icon", tone].join(" ")}>
+                    <Icon />
+                  </span>
+                  <div>
+                    <small>{label}</small>
+                    <strong>{value}</strong>
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <div className="event-manage-details">
+              <Card className="event-details-card">
+                <div className="event-card-heading">
+                  <span>
+                    <CalendarDays />
+                  </span>
+                  <div>
+                    <h2>Event schedule & details</h2>
+                    <p>Dates, venue and organizer information</p>
+                  </div>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Event starts</dt>
+                    <dd>{dateTime(event.startsAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Event ends</dt>
+                    <dd>{dateTime(event.endsAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Booking opens</dt>
+                    <dd>{dateTime(event.bookingOpensAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Booking closes</dt>
+                    <dd>{dateTime(event.bookingClosesAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Venue</dt>
+                    <dd>{event.venue || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Address</dt>
+                    <dd>{event.address || event.locationLabel || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Contact email</dt>
+                    <dd>{event.contactEmail || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Contact phone</dt>
+                    <dd>{event.contactPhone || "—"}</dd>
+                  </div>
+                </dl>
+                {event.description?.en && (
+                  <>
+                    <h3>Description</h3>
+                    <p>{event.description.en}</p>
+                  </>
+                )}{" "}
+                {event.terms?.en && (
+                  <>
+                    <h3>Booking terms</h3>
+                    <p>{event.terms.en}</p>
+                  </>
+                )}
+              </Card>
+              <Card className="form-card event-location-card">
+                <div className="event-card-heading">
+                  <span>
+                    <MapIcon />
+                  </span>
+                  <div>
+                    <h2>Publication & location</h2>
+                    <p>Control visibility and update the map position</p>
+                  </div>
+                </div>
+                <Field label="Event state">
+                  <select
+                    value={event.status}
+                    onChange={(change) =>
+                      update({ status: change.target.value })
+                    }
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="booking_closed">Booking closed</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </Field>
+                <LocationPicker value={location} onChange={setLocation} />
+                <Button disabled={!location} onClick={() => update(location)}>
+                  Save location
+                </Button>
+              </Card>
+            </div>
+          </>
+        )}
+        {tab === "booths" && (
+          <section className="event-manage-section">
+            <div className="panel-heading">
+              <div>
+                <h2>Booth occupancy</h2>
+                <p>
+                  Occupied booths are gray for administrators and applicants.
+                </p>
+              </div>
+            </div>
+            {data.booths.length ? (
+              <FloorMap data={mapData} publicMode adminMode />
+            ) : (
+              <Card className="empty">
+                No booths have been added to this event.
+              </Card>
+            )}
+          </section>
+        )}
+        {tab === "applications" && (
+          <Card className="event-manage-table">
+            <div className="panel-heading">
+              <div>
+                <h2>Entrepreneur applications</h2>
+                <p>
+                  {data.applications.length} application
+                  {data.applications.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Entrepreneur</th>
+                    <th>Business</th>
+                    <th>Booths</th>
+                    <th>Application</th>
+                    <th>Payment</th>
+                    <th>Time & details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.applications.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.entrepreneur.name}</strong>
+                        <span>{item.entrepreneur.email}</span>
+                        <span>{item.entrepreneur.phoneNumber}</span>
+                      </td>
+                      <td>
+                        <strong>
+                          {item.entrepreneur.businessName || "Not provided"}
+                        </strong>
+                        <span>
+                          {[
+                            item.entrepreneur.businessType,
+                            item.entrepreneur.region,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </td>
+                      <td>
+                        <strong>
+                          {item.booths.map((booth) => booth.code).join(", ") ||
+                            "None"}
+                        </strong>
+                        <span>
+                          {item.booths
+                            .map((booth) => `${booth.zone} · ${booth.status}`)
+                            .join("; ")}
+                        </span>
+                      </td>
+                      <td>
+                        <Badge tone={statusTone(item.status)}>
+                          {item.status.replaceAll("_", " ")}
+                        </Badge>
+                        <span>Applied {dateTime(item.appliedAt)}</span>
+                      </td>
+                      <td>
+                        {item.payment ? (
+                          <>
+                            <Badge tone={statusTone(item.payment.status)}>
+                              {item.payment.status}
+                            </Badge>
+                            <span>{item.payment.controlNumber}</span>
+                            <strong>
+                              {formatMoney(
+                                item.payment.amountMinor,
+                                item.payment.currency,
+                              )}
+                            </strong>
+                          </>
+                        ) : (
+                          <span>No payment initiated</span>
+                        )}
+                      </td>
+                      <td>
+                        <strong>{item.order?.number || "No order"}</strong>
+                        <span>Updated {dateTime(item.updatedAt)}</span>
+                        {item.expiresAt && (
+                          <span>Hold expires {dateTime(item.expiresAt)}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!data.applications.length && (
+                    <tr>
+                      <td colSpan="6" className="empty-table">
+                        No entrepreneurs have applied yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+        {tab === "transactions" && (
+          <Card className="event-manage-table">
+            <div className="panel-heading">
+              <div>
+                <h2>Transactions</h2>
+                <p>Orders and gEPG payment information for this event</p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Transaction</th>
+                    <th>Entrepreneur</th>
+                    <th>Booths</th>
+                    <th>Status</th>
+                    <th>Created / paid</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.transactions.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>
+                          {item.providerReference || item.orderNumber}
+                        </strong>
+                        <span>{item.controlNumber || "No control number"}</span>
+                        <span>{item.provider}</span>
+                      </td>
+                      <td>
+                        <strong>
+                          {item.entrepreneur?.businessName ||
+                            item.entrepreneur?.name ||
+                            "—"}
+                        </strong>
+                        <span>{item.entrepreneur?.email}</span>
+                      </td>
+                      <td>
+                        {item.booths.map((booth) => booth.code).join(", ") ||
+                          "—"}
+                      </td>
+                      <td>
+                        <Badge tone={statusTone(item.paymentStatus)}>
+                          {item.paymentStatus.replaceAll("_", " ")}
+                        </Badge>
+                        <span>Order: {item.orderStatus}</span>
+                      </td>
+                      <td>
+                        <strong>{dateTime(item.createdAt)}</strong>
+                        <span>Paid {dateTime(item.paidAt)}</span>
+                      </td>
+                      <td className="transaction-amount">
+                        {formatMoney(item.amountMinor, item.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                  {!data.transactions.length && (
+                    <tr>
+                      <td colSpan="6" className="empty-table">
+                        No transactions for this event yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+    </BookingShell>
+  );
 }
 
-const revenueColors = ['#f58220', '#173f35', '#2f80ed', '#9b51e0', '#27ae60', '#eb5757', '#718096', '#f2c94c']
-const monthLabel = value => new Date(`${value}-01T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', year: '2-digit', timeZone: 'UTC' })
-const compactMoney = minor => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format((minor || 0) / 100)
+const revenueColors = [
+  "#f58220",
+  "#173f35",
+  "#2f80ed",
+  "#9b51e0",
+  "#27ae60",
+  "#eb5757",
+  "#718096",
+  "#f2c94c",
+];
+const monthLabel = (value) =>
+  new Date(`${value}-01T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
+const compactMoney = (minor) =>
+  new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format((minor || 0) / 100);
 
 export function AdminRevenue() {
-  const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const pageSize = 10
-  const query = useQuery({ queryKey: ['admin-revenue'], queryFn: async () => (await api.get('/admin/revenue')).data.data })
-  if (query.isLoading) return <BookingShell admin><Loading/></BookingShell>
-  if (query.error) return <BookingShell admin><Alert>{messageOf(query.error)}</Alert></BookingShell>
-  const data = query.data; const summary = data.summary
-  const term = search.trim().toLowerCase()
-  const filtered = data.transactions.filter(item => !term || [item.orderNumber, item.paymentReference, item.exhibitor.name, item.exhibitor.email, item.exhibitor.region, item.event.name, ...item.booths].join(' ').toLowerCase().includes(term))
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize)); const currentPage = Math.min(page, pages); const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-  const totalRegional = data.revenueByRegion.reduce((sum, item) => sum + item.revenueMinor, 0)
-  const cards = [[Banknote, 'Total Revenue', formatMoney(summary.totalRevenueMinor, summary.currency)], [CalendarDays, 'Number of Events', summary.numberOfEvents], [ReceiptText, 'Total Transactions', summary.totalTransactions], [TrendingUp, 'Average Revenue', formatMoney(summary.averageRevenueMinor, summary.currency)]]
-  return <BookingShell admin><div className="revenue-dashboard"><div className="page-head"><div><h1>Revenue</h1><p>Track paid event revenue, sales performance, and exhibitor transactions.</p></div><Badge tone="green">All-time paid revenue</Badge></div><div className="revenue-stats">{cards.map(([Icon, label, value], index) => <Card className="revenue-stat" key={label}><div><span>{label}</span><strong>{value}</strong></div><i className={`revenue-stat-icon tone-${index}`}><Icon/></i></Card>)}</div><div className="revenue-charts"><Card className="revenue-panel trend-panel"><div className="panel-heading"><div><h2>Revenue trend</h2><p>Monthly revenue against events receiving paid sales</p></div></div>{data.monthly.length ? <ResponsiveContainer width="100%" height={310}><AreaChart data={data.monthly} margin={{ top: 12, right: 8, left: 4, bottom: 0 }}><defs><linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f58220" stopOpacity=".3"/><stop offset="100%" stopColor="#f58220" stopOpacity=".02"/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="month" tickFormatter={monthLabel}/><YAxis yAxisId="revenue" tickFormatter={value => compactMoney(value)}/><YAxis yAxisId="events" orientation="right" allowDecimals={false}/><Tooltip labelFormatter={monthLabel} formatter={(value, name) => name === 'Revenue' ? formatMoney(value) : [value, name]}/><Legend/><Area yAxisId="revenue" name="Revenue" type="monotone" dataKey="revenueMinor" stroke="#f58220" strokeWidth={3} fill="url(#revenueFill)"/><Line yAxisId="events" name="Events" type="monotone" dataKey="numberOfEvents" stroke="#173f35" strokeWidth={3} dot={{ r: 3 }}/></AreaChart></ResponsiveContainer> : <div className="empty">Revenue trends will appear after the first successful payment.</div>}</Card><Card className="revenue-panel region-panel"><div className="panel-heading"><div><h2>Revenue per region</h2><p>Based on exhibitors' registered regions</p></div></div>{data.revenueByRegion.length ? <><div className="region-chart"><ResponsiveContainer width="100%" height={230}><PieChart><Pie data={data.revenueByRegion} dataKey="revenueMinor" nameKey="region" innerRadius={62} outerRadius={88} paddingAngle={2}>{data.revenueByRegion.map((item, index) => <Cell key={item.region} fill={revenueColors[index % revenueColors.length]}/>)}</Pie><Tooltip formatter={value => formatMoney(value)}/></PieChart></ResponsiveContainer><div className="donut-total"><strong>{compactMoney(totalRegional * 100)}</strong><span>TZS total</span></div></div><div className="region-legend">{data.revenueByRegion.map((item, index) => <div key={item.region}><i style={{ background: revenueColors[index % revenueColors.length] }}/><span>{item.region}</span><strong>{totalRegional ? Math.round(item.revenueMinor / totalRegional * 100) : 0}%</strong></div>)}</div></> : <div className="empty">Regional revenue will appear after the first successful payment.</div>}</Card></div><Card className="revenue-panel event-sales"><div className="panel-heading"><div><h2>Event sales</h2><p>Booths sold against total booth inventory</p></div></div><div className="event-sales-grid">{data.eventSales.map(event => { const percent = event.totalBooths ? Math.round(event.soldBooths / event.totalBooths * 100) : 0; return <article key={event.eventId}><div><span>{event.eventName}</span><strong>{event.soldBooths} / {event.totalBooths} booths</strong></div><div className="sales-donut" style={{ '--sales-percent': `${percent * 3.6}deg` }} role="img" aria-label={`${percent}% of booths sold`}><b>{percent}%</b></div></article>})}{!data.eventSales.length && <div className="empty">No events have been created yet.</div>}</div></Card><Card className="revenue-panel transaction-panel"><div className="panel-heading transaction-heading"><div><h2>Transactions</h2><p>{filtered.length} paid transaction{filtered.length === 1 ? '' : 's'}</p></div><div className="transaction-search"><Search/><Input value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} placeholder="Search transactions" aria-label="Search transactions"/></div></div><div className="table-wrap"><table><thead><tr><th>Transaction</th><th>Exhibitor</th><th>Event / booths</th><th>Region</th><th>Paid</th><th>Amount</th></tr></thead><tbody>{visible.map(item => <tr key={item.id}><td><strong>{item.paymentReference}</strong><span>{item.orderNumber}</span></td><td><strong>{item.exhibitor.name}</strong><span>{item.exhibitor.email}</span></td><td><strong>{item.event.name}</strong><span>{item.booths.length ? item.booths.join(', ') : 'No booth details'}</span></td><td>{item.exhibitor.region}</td><td><Badge tone="green">Paid</Badge><span>{date(item.paidAt)}</span></td><td className="transaction-amount">{formatMoney(item.amountMinor, item.currency)}</td></tr>)}{!visible.length && <tr><td colSpan="6" className="empty-table">No matching paid transactions.</td></tr>}</tbody></table></div><div className="pagination"><span>{filtered.length ? `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, filtered.length)} of ${filtered.length}` : '0 transactions'}</span><div><Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setPage(value => value - 1)}>Previous</Button><span>Page {currentPage} of {pages}</span><Button size="sm" variant="outline" disabled={currentPage === pages} onClick={() => setPage(value => value + 1)}>Next</Button></div></div></Card></div></BookingShell>
+  const [revenueParams, setRevenueParams] = useSearchParams();
+  const search = revenueParams.get("q") || "",
+    page = Math.max(1, Number(revenueParams.get("page")) || 1);
+  const setSearch = (value) => {
+    const next = new URLSearchParams(revenueParams);
+    value ? next.set("q", value) : next.delete("q");
+    next.delete("page");
+    setRevenueParams(next, { replace: true });
+  };
+  const setPage = (value) => {
+    const resolved = typeof value === "function" ? value(page) : value;
+    const next = new URLSearchParams(revenueParams);
+    resolved > 1 ? next.set("page", String(resolved)) : next.delete("page");
+    setRevenueParams(next, { replace: true });
+  };
+  const pageSize = 10;
+  const query = useQuery({
+    queryKey: ["admin-revenue"],
+    queryFn: async () => (await api.get("/admin/revenue")).data.data,
+  });
+  if (query.isLoading)
+    return (
+      <BookingShell admin>
+        <Loading />
+      </BookingShell>
+    );
+  if (query.error)
+    return (
+      <BookingShell admin>
+        <Alert>{messageOf(query.error)}</Alert>
+      </BookingShell>
+    );
+  const data = query.data;
+  const summary = data.summary;
+  const term = search.trim().toLowerCase();
+  const filtered = data.transactions.filter(
+    (item) =>
+      !term ||
+      [
+        item.orderNumber,
+        item.paymentReference,
+        item.exhibitor.name,
+        item.exhibitor.email,
+        item.exhibitor.region,
+        item.event.name,
+        ...item.booths,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(term),
+  );
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, pages);
+  const visible = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const totalRegional = data.revenueByRegion.reduce(
+    (sum, item) => sum + item.revenueMinor,
+    0,
+  );
+  const cards = [
+    [
+      Banknote,
+      "Booking revenue",
+      formatMoney(summary.totalRevenueMinor, summary.currency),
+    ],
+    [
+      TrendingUp,
+      "Entrepreneur revenue",
+      formatMoney(summary.totalReportedSalesMinor, "TZS"),
+    ],
+    [Users, "Reporting entrepreneurs", summary.reportingEntrepreneurs],
+    [CalendarDays, "Events with bookings", summary.numberOfEvents],
+    [ReceiptText, "Paid booking transactions", summary.totalTransactions],
+    [Store, "Reported sales entries", summary.reportedSalesEntries],
+  ];
+  return (
+    <BookingShell admin>
+      <div className="revenue-dashboard">
+        <div className="page-head">
+          <div>
+            <h1>Revenue</h1>
+            <p>
+              Compare SIDO booking revenue with entrepreneur-reported business
+              revenue.
+            </p>
+          </div>
+          <Badge tone="green">All-time paid revenue</Badge>
+        </div>
+        <div className="revenue-stats">
+          {cards.map(([Icon, label, value], index) => (
+            <Card className="revenue-stat" key={label}>
+              <div>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+              <i className={`revenue-stat-icon tone-${index}`}>
+                <Icon />
+              </i>
+            </Card>
+          ))}
+        </div>
+        <div className="revenue-charts">
+          <Card className="revenue-panel trend-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Revenue trend</h2>
+                <p>Monthly booking revenue and entrepreneur-reported revenue</p>
+              </div>
+            </div>
+            <p className="sr-only">
+              {data.monthly
+                .map(
+                  (item) =>
+                    `${monthLabel(item.month)}: ${formatMoney(item.revenueMinor)} booking revenue, ${formatMoney(item.reportedSalesMinor)} entrepreneur revenue`,
+                )
+                .join("; ")}
+            </p>
+            {data.monthly.length ? (
+              <ResponsiveContainer width="100%" height={310}>
+                <AreaChart
+                  data={data.monthly}
+                  margin={{ top: 12, right: 8, left: 4, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="revenueFill"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor="#f58220" stopOpacity=".3" />
+                      <stop
+                        offset="100%"
+                        stopColor="#f58220"
+                        stopOpacity=".02"
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tickFormatter={monthLabel} />
+                  <YAxis
+                    yAxisId="revenue"
+                    tickFormatter={(value) => compactMoney(value)}
+                  />
+                  <YAxis
+                    yAxisId="events"
+                    orientation="right"
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    labelFormatter={monthLabel}
+                    formatter={(value, name) =>
+                      name === "Events"
+                        ? [value, name]
+                        : [formatMoney(value), name]
+                    }
+                  />
+                  <Legend />
+                  <Area
+                    yAxisId="revenue"
+                    name="Booking revenue"
+                    type="monotone"
+                    dataKey="revenueMinor"
+                    stroke="#f58220"
+                    strokeWidth={3}
+                    fill="url(#revenueFill)"
+                  />
+                  <Line
+                    yAxisId="revenue"
+                    name="Entrepreneur revenue"
+                    type="monotone"
+                    dataKey="reportedSalesMinor"
+                    stroke="#16a36a"
+                    strokeWidth={3}
+                    dot={{ r: 3 }}
+                  />
+                  <Line
+                    yAxisId="events"
+                    name="Events"
+                    type="monotone"
+                    dataKey="numberOfEvents"
+                    stroke="#173f35"
+                    strokeWidth={3}
+                    dot={{ r: 3 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="empty">
+                Revenue trends will appear after the first successful payment.
+              </div>
+            )}
+          </Card>
+          <Card className="revenue-panel region-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Revenue per region</h2>
+                <p>
+                  Booking share with entrepreneur-reported revenue by region
+                </p>
+              </div>
+            </div>
+            <p className="sr-only">
+              {data.revenueByRegion
+                .map(
+                  (item) =>
+                    `${item.region}: ${formatMoney(item.revenueMinor)} booking revenue and ${formatMoney(item.reportedSalesMinor, "TZS")} reported revenue`,
+                )
+                .join("; ")}
+            </p>
+            {data.revenueByRegion.length ? (
+              <>
+                <div className="region-chart">
+                  <ResponsiveContainer width="100%" height={230}>
+                    <PieChart>
+                      <Pie
+                        data={data.revenueByRegion}
+                        dataKey="revenueMinor"
+                        nameKey="region"
+                        innerRadius={62}
+                        outerRadius={88}
+                        paddingAngle={2}
+                      >
+                        {data.revenueByRegion.map((item, index) => (
+                          <Cell
+                            key={item.region}
+                            fill={revenueColors[index % revenueColors.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatMoney(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="donut-total">
+                    <strong>{compactMoney(totalRegional * 100)}</strong>
+                    <span>TZS total</span>
+                  </div>
+                </div>
+                <div className="region-legend">
+                  {data.revenueByRegion.map((item, index) => (
+                    <div key={item.region}>
+                      <i
+                        style={{
+                          background:
+                            revenueColors[index % revenueColors.length],
+                        }}
+                      />
+                      <span>{item.region}</span>
+                      <strong>
+                        {totalRegional
+                          ? Math.round(
+                              (item.revenueMinor / totalRegional) * 100,
+                            )
+                          : 0}
+                        %
+                        <small>
+                          {formatMoney(item.reportedSalesMinor, "TZS")} reported
+                        </small>
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty">
+                Regional revenue will appear after the first successful payment.
+              </div>
+            )}
+          </Card>
+        </div>
+        <Card className="revenue-panel event-sales">
+          <div className="panel-heading">
+            <div>
+              <h2>Event sales</h2>
+              <p>Booths sold against total booth inventory</p>
+            </div>
+          </div>
+          <div className="event-sales-grid">
+            {data.eventSales.map((event) => {
+              const percent = event.totalBooths
+                ? Math.round((event.soldBooths / event.totalBooths) * 100)
+                : 0;
+              return (
+                <article key={event.eventId}>
+                  <div>
+                    <span>{event.eventName}</span>
+                    <strong>
+                      {event.soldBooths} / {event.totalBooths} booths
+                    </strong>
+                    <small>
+                      {formatMoney(event.reportedSalesMinor, "TZS")}{" "}
+                      entrepreneur revenue · {event.reportedDays} reports
+                    </small>
+                  </div>
+                  <div
+                    className="sales-donut"
+                    style={{ "--sales-percent": `${percent * 3.6}deg` }}
+                    role="img"
+                    aria-label={`${percent}% of booths sold`}
+                  >
+                    <b>{percent}%</b>
+                  </div>
+                </article>
+              );
+            })}
+            {!data.eventSales.length && (
+              <div className="empty">No events have been created yet.</div>
+            )}
+          </div>
+        </Card>
+        <Card className="revenue-panel transaction-panel">
+          <div className="panel-heading transaction-heading">
+            <div>
+              <h2>Transactions</h2>
+              <p>
+                {filtered.length} paid transaction
+                {filtered.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div className="transaction-search">
+              <Search />
+              <Input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search transactions"
+                aria-label="Search transactions"
+              />
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Transaction</th>
+                  <th>Exhibitor</th>
+                  <th>Event / booths</th>
+                  <th>Region</th>
+                  <th>Paid</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <strong>{item.paymentReference}</strong>
+                      <span>{item.orderNumber}</span>
+                    </td>
+                    <td>
+                      <strong>{item.exhibitor.name}</strong>
+                      <span>{item.exhibitor.email}</span>
+                    </td>
+                    <td>
+                      <strong>{item.event.name}</strong>
+                      <span>
+                        {item.booths.length
+                          ? item.booths.join(", ")
+                          : "No booth details"}
+                      </span>
+                    </td>
+                    <td>{item.exhibitor.region}</td>
+                    <td>
+                      <Badge tone="green">Paid</Badge>
+                      <span>{date(item.paidAt)}</span>
+                    </td>
+                    <td className="transaction-amount">
+                      {formatMoney(item.amountMinor, item.currency)}
+                    </td>
+                  </tr>
+                ))}
+                {!visible.length && (
+                  <tr>
+                    <td colSpan="6" className="empty-table">
+                      No matching paid transactions.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="pagination">
+            <span>
+              {filtered.length
+                ? `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, filtered.length)} of ${filtered.length}`
+                : "0 transactions"}
+            </span>
+            <div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setPage((value) => value - 1)}
+              >
+                Previous
+              </Button>
+              <span>
+                Page {currentPage} of {pages}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === pages}
+                onClick={() => setPage((value) => value + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </BookingShell>
+  );
 }
